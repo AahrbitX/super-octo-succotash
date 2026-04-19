@@ -3,7 +3,7 @@ import {
   uuid,
   varchar,
   text,
-  integer,
+  bigint,
   numeric,
   boolean,
   timestamp,
@@ -36,7 +36,7 @@ export const paymentStatusEnum = pgEnum("payment_status", [
   "failed",
 ]);
 
-// --- 6.2 Table: places ---
+// --- Table: places ---
 export const places = pgTable(
   "places",
   {
@@ -52,7 +52,7 @@ export const places = pgTable(
   (table) => [index("idx_places_active").on(table.active)],
 );
 
-// --- 6.3 Table: bookings ---
+// --- Table: bookings ---
 export const bookings = pgTable(
   "bookings",
   {
@@ -63,6 +63,7 @@ export const bookings = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id),
+    driverId: text("driver_id").references(() => drivers.id),
     pickupId: uuid("pickup_id")
       .notNull()
       .references(() => places.id),
@@ -76,6 +77,8 @@ export const bookings = pgTable(
     ac: boolean("ac").notNull().default(true),
     totalFare: numeric("total_fare", { precision: 8, scale: 2 }).notNull(),
     status: bookingStatusEnum("status").notNull().default("pending"),
+    rideStartedAt: timestamp("ride_started_at", { withTimezone: true }),
+    rideEndedAt: timestamp("ride_ended_at", { withTimezone: true }),
     qrToken: uuid("qr_token")
       .notNull()
       .unique()
@@ -94,10 +97,11 @@ export const bookings = pgTable(
     index("idx_bookings_status").on(table.status),
     uniqueIndex("idx_bookings_qr").on(table.qrToken),
     index("idx_bookings_created_at").on(table.createdAt),
+    index("idx_bookings_driver_id").on(table.driverId),
   ],
 );
 
-// --- 6.4 Table: payments ---
+// --- Table: payments ---
 export const payments = pgTable("payments", {
   id: uuid("id")
     .primaryKey()
@@ -120,7 +124,7 @@ export const payments = pgTable("payments", {
     .defaultNow(),
 });
 
-// --- 6.5 Table: reviews ---
+// --- Table: reviews ---
 export const reviews = pgTable("reviews", {
   id: uuid("id")
     .primaryKey()
@@ -136,6 +140,57 @@ export const reviews = pgTable("reviews", {
     .notNull()
     .defaultNow(),
 });
+
+// -- Table: drivers --
+export const drivers = pgTable(
+  "drivers",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" })
+      .unique(),
+    vehicleNumber: varchar("vehicle_number", { length: 20 }).notNull(),
+    vehicleType: vehicleTypeEnum("vehicle_type").notNull(),
+    ac: boolean("ac").notNull().default(true),
+    isAvailable: boolean("is_available").notNull().default(true),
+    currentLat: numeric("current_lat", { precision: 10, scale: 7 }),
+    currentLng: numeric("current_lng", { precision: 10, scale: 7 }),
+    lastLocationAt: timestamp("last_location_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("idx_drivers_user_id").on(table.userId),
+    index("idx_drivers_available").on(table.isAvailable),
+    index("idx_drivers_vehicle").on(table.vehicleType, table.ac),
+  ],
+);
+
+// -- TABLE : driverLocations --
+export const driverLocations = pgTable(
+  "driver_locations",
+  {
+    id: bigint("id", { mode: "number" })
+      .primaryKey()
+      .generatedAlwaysAsIdentity(),
+    bookingId: uuid("booking_id")
+      .notNull()
+      .references(() => bookings.id, { onDelete: "cascade" }),
+    driverId: text("driver_id")
+      .notNull()
+      .references(() => drivers.id),
+    lat: numeric("lat", { precision: 10, scale: 7 }).notNull(),
+    lng: numeric("lng", { precision: 10, scale: 7 }).notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_driver_locations_booking").on(table.bookingId, table.recordedAt),
+  ],
+);
 
 // --- DRIZZLE RELATIONS ---
 export const userRelations = relations(user, ({ many }) => ({
