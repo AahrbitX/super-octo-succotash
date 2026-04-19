@@ -6,6 +6,7 @@ import { cors } from "@elysiajs/cors";
 import { bookingsRouter } from "./routes/bookings";
 import { placesRouter } from "./routes/places";
 import { reviewsRouter } from "./routes/review";
+import { usersRouter } from "./routes/users";
 
 const app = new Elysia()
   // CORS middleware to allow requests from frontend
@@ -16,8 +17,8 @@ const app = new Elysia()
     }),
   )
 
-  // Mount Better Auth middleware at /api/auth
-  .mount("/api/auth", auth.handler)
+  // Mouting this route to be handled by Better Auth
+  .mount("/", auth.handler)
 
   // Session middleware to attach user session to each request
   .derive(async ({ request }) => {
@@ -30,9 +31,13 @@ const app = new Elysia()
   // Health check endpoint
   .get("/", () => ({ status: "Mohan Cabs API is running" }))
 
-  // Mouting others routers
+  // Mouting others routers - Business logic
   .group("/api", (app) =>
-    app.use(bookingsRouter).use(placesRouter).use(reviewsRouter),
+    app
+      .use(bookingsRouter)
+      .use(placesRouter)
+      .use(reviewsRouter)
+      .use(usersRouter),
   )
 
   // Listen to 4000 port

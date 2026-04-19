@@ -1,5 +1,6 @@
 import postgres from "postgres";
 import * as schema from "./schema";
+import * as authSchema from "./auth-schema";
 import { drizzle } from "drizzle-orm/postgres-js";
 
 /*
@@ -20,6 +21,6 @@ if (!connectionString) {
 const client = postgres(connectionString, { prepare: false });
 
 export const db = drizzle(client, {
-  schema,
+  schema: { ...schema, ...authSchema },
   // logger: true // Uncomment this to see every SQL query in your terminal
 });

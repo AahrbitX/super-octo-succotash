@@ -1,5 +1,6 @@
 import { db } from "../db";
 import * as schema from "../db/schema";
+import * as authSchema from "../db/auth-schema";
 
 // better Auth imports
 import { betterAuth } from "better-auth";
@@ -18,13 +19,17 @@ Purpose:
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg", // PostgreSQL provider
-    schema: schema,
+    schema: { ...schema, ...authSchema },
   }),
+  basePath: "/api/auth",
+  trustedOrigins: ["http://localhost:3000", process.env.FRONTEND_URL || ""],
   user: {
     additionalFields: {
       role: { type: "string", defaultValue: "user" },
-      phone: { type: "string", required: false },
     },
+  },
+  emailAndPassword: {
+    enabled: true,
   },
   plugins: [
     phoneNumber({

@@ -40,9 +40,7 @@ export const paymentStatusEnum = pgEnum("payment_status", [
 export const places = pgTable(
   "places",
   {
-    id: uuid("id")
-      .primaryKey()
-      .default(sql`gen_random_uuid()`),
+    id: uuid("id").primaryKey(),
     name: varchar("name", { length: 150 }).notNull(),
     zone: varchar("zone", { length: 100 }).notNull(),
     baseFare: numeric("base_fare", { precision: 8, scale: 2 }).notNull(),
@@ -62,7 +60,7 @@ export const bookings = pgTable(
       .primaryKey()
       .default(sql`gen_random_uuid()`),
     bookingRef: varchar("booking_ref", { length: 20 }).notNull().unique(),
-    userId: uuid("user_id")
+    userId: text("user_id")
       .notNull()
       .references(() => user.id),
     pickupId: uuid("pickup_id")
@@ -115,7 +113,7 @@ export const payments = pgTable("payments", {
   currency: varchar("currency", { length: 3 }).notNull().default("INR"),
   status: paymentStatusEnum("status").notNull().default("created"),
   refundId: varchar("refund_id", { length: 100 }),
-  refundedBy: uuid("refunded_by").references(() => user.id),
+  refundedBy: text("refunded_by").references(() => user.id),
   paidAt: timestamp("paid_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

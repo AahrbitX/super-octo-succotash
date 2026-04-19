@@ -1,11 +1,11 @@
 CREATE TYPE "public"."booking_status" AS ENUM('pending', 'confirmed', 'completed', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."payment_status" AS ENUM('created', 'paid', 'refunded', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."vehicle_type" AS ENUM('sedan', 'suv', 'minivan');--> statement-breakpoint
-CREATE TYPE "public"."user_role" AS ENUM('user', 'admin');--> statement-breakpoint
+CREATE TYPE "public"."user_role" AS ENUM('user', 'driver', 'admin');--> statement-breakpoint
 CREATE TABLE "bookings" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"booking_ref" varchar(20) NOT NULL,
-	"user_id" uuid NOT NULL,
+	"user_id" text NOT NULL,
 	"pickup_id" uuid NOT NULL,
 	"drop_id" uuid NOT NULL,
 	"journey_date" date NOT NULL,
@@ -32,14 +32,14 @@ CREATE TABLE "payments" (
 	"currency" varchar(3) DEFAULT 'INR' NOT NULL,
 	"status" "payment_status" DEFAULT 'created' NOT NULL,
 	"refund_id" varchar(100),
-	"refunded_by" uuid,
+	"refunded_by" text,
 	"paid_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "payments_rzp_payment_id_unique" UNIQUE("rzp_payment_id")
 );
 --> statement-breakpoint
 CREATE TABLE "places" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"name" varchar(150) NOT NULL,
 	"zone" varchar(100) NOT NULL,
 	"base_fare" numeric(8, 2) NOT NULL,
@@ -61,7 +61,7 @@ CREATE TABLE "account" (
 	"id" text PRIMARY KEY NOT NULL,
 	"account_id" text NOT NULL,
 	"provider_id" text NOT NULL,
-	"user_id" uuid NOT NULL,
+	"user_id" text NOT NULL,
 	"access_token" text,
 	"refresh_token" text,
 	"id_token" text,
@@ -81,12 +81,12 @@ CREATE TABLE "session" (
 	"updated_at" timestamp NOT NULL,
 	"ip_address" text,
 	"user_agent" text,
-	"user_id" uuid NOT NULL,
+	"user_id" text NOT NULL,
 	CONSTRAINT "session_token_unique" UNIQUE("token")
 );
 --> statement-breakpoint
 CREATE TABLE "user" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" text PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"name" text NOT NULL,
 	"email" text NOT NULL,
 	"email_verified" boolean DEFAULT false NOT NULL,
