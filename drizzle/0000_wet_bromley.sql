@@ -3,11 +3,16 @@ CREATE TYPE "public"."payment_status" AS ENUM('created', 'paid', 'refunded', 'fa
 CREATE TYPE "public"."vehicle_type" AS ENUM('sedan', 'suv', 'minivan');--> statement-breakpoint
 CREATE TYPE "public"."user_role" AS ENUM('user', 'driver', 'admin');--> statement-breakpoint
 CREATE TABLE "bookings" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" text PRIMARY KEY NOT NULL,
 	"booking_ref" varchar(20) NOT NULL,
-	"user_id" text NOT NULL,
-	"pickup_id" uuid NOT NULL,
-	"drop_id" uuid NOT NULL,
+	"user_id" text,
+	"booked_by_user_id" text NOT NULL,
+	"customer_name" varchar(150) NOT NULL,
+	"customer_phone" varchar(20) NOT NULL,
+	"source" varchar(20) DEFAULT 'admin' NOT NULL,
+	"driver_id" text,
+	"pickup_id" text NOT NULL,
+	"drop_id" text NOT NULL,
 	"journey_date" date NOT NULL,
 	"journey_time" time NOT NULL,
 	"members" smallint NOT NULL,
@@ -15,6 +20,8 @@ CREATE TABLE "bookings" (
 	"ac" boolean DEFAULT true NOT NULL,
 	"total_fare" numeric(8, 2) NOT NULL,
 	"status" "booking_status" DEFAULT 'pending' NOT NULL,
+	"ride_started_at" timestamp with time zone,
+	"ride_ended_at" timestamp with time zone,
 	"qr_token" uuid DEFAULT gen_random_uuid() NOT NULL,
 	"qr_expires_at" timestamp with time zone NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -23,9 +30,32 @@ CREATE TABLE "bookings" (
 	CONSTRAINT "bookings_qr_token_unique" UNIQUE("qr_token")
 );
 --> statement-breakpoint
+CREATE TABLE "driver_locations" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "driver_locations_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+	"booking_id" text NOT NULL,
+	"driver_id" text NOT NULL,
+	"lat" numeric(10, 7) NOT NULL,
+	"lng" numeric(10, 7) NOT NULL,
+	"recorded_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "drivers" (
+	"id" text PRIMARY KEY NOT NULL,
+	"user_id" text NOT NULL,
+	"vehicle_number" varchar(20) NOT NULL,
+	"vehicle_type" "vehicle_type" NOT NULL,
+	"ac" boolean DEFAULT true NOT NULL,
+	"is_available" boolean DEFAULT true NOT NULL,
+	"current_lat" numeric(10, 7),
+	"current_lng" numeric(10, 7),
+	"last_location_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "drivers_user_id_unique" UNIQUE("user_id")
+);
+--> statement-breakpoint
 CREATE TABLE "payments" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"booking_id" uuid NOT NULL,
+	"booking_id" text NOT NULL,
 	"rzp_order_id" varchar(100) NOT NULL,
 	"rzp_payment_id" varchar(100),
 	"amount" numeric(8, 2) DEFAULT '500.00' NOT NULL,
@@ -39,17 +69,17 @@ CREATE TABLE "payments" (
 );
 --> statement-breakpoint
 CREATE TABLE "places" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" text PRIMARY KEY NOT NULL,
 	"name" varchar(150) NOT NULL,
 	"zone" varchar(100) NOT NULL,
-	"base_fare" numeric(8, 2) NOT NULL,
+	"base_fare" numeric(8, 2),
 	"active" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "reviews" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"booking_id" uuid NOT NULL,
+	"booking_id" text NOT NULL,
 	"qr_token" uuid NOT NULL,
 	"rating" smallint NOT NULL,
 	"comment" text,
@@ -96,7 +126,7 @@ CREATE TABLE "user" (
 	"phone_number" text,
 	"phone_number_verified" boolean,
 	"role" "user_role" DEFAULT 'user' NOT NULL,
-	"phone" text,
+	"dob" date,
 	CONSTRAINT "user_email_unique" UNIQUE("email"),
 	CONSTRAINT "user_phone_number_unique" UNIQUE("phone_number")
 );
@@ -111,18 +141,22 @@ CREATE TABLE "verification" (
 );
 --> statement-breakpoint
 ALTER TABLE "bookings" ADD CONSTRAINT "bookings_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "bookings" ADD CONSTRAINT "bookings_booked_by_user_id_user_id_fk" FOREIGN KEY ("booked_by_user_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "bookings" ADD CONSTRAINT "bookings_driver_id_drivers_id_fk" FOREIGN KEY ("driver_id") REFERENCES "public"."drivers"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "bookings" ADD CONSTRAINT "bookings_pickup_id_places_id_fk" FOREIGN KEY ("pickup_id") REFERENCES "public"."places"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "bookings" ADD CONSTRAINT "bookings_drop_id_places_id_fk" FOREIGN KEY ("drop_id") REFERENCES "public"."places"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "driver_locations" ADD CONSTRAINT "driver_locations_booking_id_bookings_id_fk" FOREIGN KEY ("booking_id") REFERENCES "public"."bookings"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "driver_locations" ADD CONSTRAINT "driver_locations_driver_id_drivers_id_fk" FOREIGN KEY ("driver_id") REFERENCES "public"."drivers"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "drivers" ADD CONSTRAINT "drivers_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payments" ADD CONSTRAINT "payments_booking_id_bookings_id_fk" FOREIGN KEY ("booking_id") REFERENCES "public"."bookings"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payments" ADD CONSTRAINT "payments_refunded_by_user_id_fk" FOREIGN KEY ("refunded_by") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "reviews" ADD CONSTRAINT "reviews_booking_id_bookings_id_fk" FOREIGN KEY ("booking_id") REFERENCES "public"."bookings"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "account" ADD CONSTRAINT "account_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "session" ADD CONSTRAINT "session_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "idx_bookings_user_id" ON "bookings" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "idx_bookings_journey_dt" ON "bookings" USING btree ("journey_date");--> statement-breakpoint
-CREATE INDEX "idx_bookings_status" ON "bookings" USING btree ("status");--> statement-breakpoint
-CREATE UNIQUE INDEX "idx_bookings_qr" ON "bookings" USING btree ("qr_token");--> statement-breakpoint
-CREATE INDEX "idx_bookings_created_at" ON "bookings" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "idx_driver_locations_booking" ON "driver_locations" USING btree ("booking_id","recorded_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "idx_drivers_user_id" ON "drivers" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "idx_drivers_available" ON "drivers" USING btree ("is_available");--> statement-breakpoint
+CREATE INDEX "idx_drivers_vehicle" ON "drivers" USING btree ("vehicle_type","ac");--> statement-breakpoint
 CREATE INDEX "idx_places_active" ON "places" USING btree ("active");--> statement-breakpoint
 CREATE INDEX "account_userId_idx" ON "account" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "session_userId_idx" ON "session" USING btree ("user_id");--> statement-breakpoint

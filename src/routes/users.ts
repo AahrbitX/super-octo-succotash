@@ -1,8 +1,8 @@
 import { db } from "../db";
 import { auth } from "../lib/auth";
-import { user } from "../db/auth-schema";
+import { user as usersTable } from "../db/auth-schema";
 
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import Elysia, { t } from "elysia";
 
 export const usersRouter = new Elysia({ prefix: "/users" })
@@ -26,8 +26,13 @@ export const usersRouter = new Elysia({ prefix: "/users" })
 
       // Run both queries in parallel for better performance
       const [data, countResult] = await Promise.all([
-        db.select().from(user).limit(pageSize).offset(offset),
-        db.select({ count: sql<number>`count(*)` }).from(user),
+        db
+          .select()
+          .from(usersTable)
+          .where(eq(usersTable.role, "user"))
+          .limit(pageSize)
+          .offset(offset),
+        db.select({ count: sql<number>`count(*)` }).from(usersTable),
       ]);
 
       const totalCount = Number(countResult[0]?.count);
@@ -40,7 +45,6 @@ export const usersRouter = new Elysia({ prefix: "/users" })
           pageSize,
           totalCount,
           totalPages,
-          hasNextPage: page < totalPages,
         },
       };
     },
@@ -48,5 +52,36 @@ export const usersRouter = new Elysia({ prefix: "/users" })
       query: t.Object({
         page: t.Optional(t.String()),
       }),
+    },
+  )
+  .get(
+    "/:id",
+    async ({ params: { id }, set }) => {
+      const [driver] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.id, id))
+        .limit(1);
+
+      if (!driver) {
+        set.status = 404;
+        return { success: false, message: "Driver not found" };
+      }
+
+      return {
+        success: true,
+        data: driver,
+      };
+    },
+    {
+      params: t.Object({
+        id: t.String(),
+      }),
+      response: {
+        404: t.Object({
+          success: t.Boolean(),
+          message: t.String(),
+        }),
+      },
     },
   );

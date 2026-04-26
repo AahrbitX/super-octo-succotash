@@ -1,13 +1,15 @@
 import { Elysia } from "elysia";
 import { auth } from "./lib/auth";
 import { cors } from "@elysiajs/cors";
+import { logger } from "./lib/logging";
 
 // other Routers
-import { bookingsRouter } from "./routes/bookings";
+import { bookingsRouter } from "./routes/bookings/index";
 import { placesRouter } from "./routes/places";
 import { reviewsRouter } from "./routes/review";
 import { usersRouter } from "./routes/users";
-import { logger } from "./lib/logging";
+import { driversRouter } from "./routes/drivers";
+import { dispatchersRouter } from "./routes/dispatchers";
 
 const app = new Elysia()
   // For Logging Purpose
@@ -54,9 +56,11 @@ const app = new Elysia()
   .group("/api", (app) =>
     app
       .use(bookingsRouter)
+      .use(dispatchersRouter)
       .use(placesRouter)
       .use(reviewsRouter)
-      .use(usersRouter),
+      .use(usersRouter)
+      .use(driversRouter),
   )
 
   // Listen to 4000 port

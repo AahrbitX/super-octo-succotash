@@ -1,4 +1,4 @@
-import { auth } from "./auth";
+import { auth } from "../lib/auth";
 
 async function createAdmin() {
   const adminPhone = "8056054719";
@@ -8,7 +8,9 @@ async function createAdmin() {
         email: `${adminPhone}@mohan-cabs.com`,
         password: "adminpassword",
         name: "Karthikeyan",
-        role: "admin",
+        role: "user",
+        phoneNumber: adminPhone,
+        dob: "10-12-2002",
       },
     });
     console.log("✅ Admin created successfully!");

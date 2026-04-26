@@ -7,6 +7,7 @@ import {
   index,
   pgEnum,
   uuid,
+  date,
 } from "drizzle-orm/pg-core";
 
 export const roleEnum = pgEnum("user_role", ["user", "driver", "admin"]);
@@ -27,7 +28,7 @@ export const user = pgTable("user", {
   phoneNumber: text("phone_number").unique(),
   phoneNumberVerified: boolean("phone_number_verified"),
   role: roleEnum("role").notNull().default("user"),
-  phone: text("phone"),
+  dob: date("dob", { mode: "string" }),
 });
 
 export const session = pgTable(
