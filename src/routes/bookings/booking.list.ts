@@ -16,6 +16,10 @@ export const bookingListSchema = {
     page: t.Optional(t.String()),
     pageSize: t.Optional(t.String()),
   }),
+  detail: {
+    tags: ["Bookings"],
+    description: "List all the bookings with pagination for datatable",
+  },
 };
 
 const bookingList = async ({

@@ -2,6 +2,7 @@ import { Elysia } from "elysia";
 import { auth } from "./lib/auth";
 import { cors } from "@elysiajs/cors";
 import { logger } from "./lib/logging";
+import { openapi, fromTypes } from "@elysia/openapi";
 
 // other Routers
 import { bookingsRouter } from "./routes/bookings/index";
@@ -10,8 +11,24 @@ import { reviewsRouter } from "./routes/review";
 import { usersRouter } from "./routes/users";
 import { driversRouter } from "./routes/drivers";
 import { dispatchersRouter } from "./routes/dispatchers";
+import { reportsRouter } from "./routes/reports";
 
 const app = new Elysia()
+
+  // API documentation with openAPI plugin
+  .use(
+    openapi({
+      references: fromTypes(),
+      documentation: {
+        info: {
+          title: "Cab Booking Service API",
+          version: "0.1",
+          description: "Cab booking and Admin management system",
+        },
+      },
+    }),
+  )
+
   // For Logging Purpose
   .onRequest(({ request }) => {
     logger.info(
@@ -50,7 +67,12 @@ const app = new Elysia()
   })
 
   // Health check endpoint
-  .get("/", () => ({ status: "Mohan Cabs API is running" }))
+  .get("/", () => ({ status: "Mohan Cabs API is running" }), {
+    detail: {
+      tags: ["Basic"],
+      description: "Status check / Health Check endpoint",
+    },
+  })
 
   // Mouting others routers - Business logic
   .group("/api", (app) =>
@@ -60,7 +82,8 @@ const app = new Elysia()
       .use(placesRouter)
       .use(reviewsRouter)
       .use(usersRouter)
-      .use(driversRouter),
+      .use(driversRouter)
+      .use(reportsRouter),
   )
 
   // Listen to 4000 port

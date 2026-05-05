@@ -14,6 +14,10 @@ export const dispatchersListSchema = {
   query: t.Object({
     limit: t.Optional(t.String()),
   }),
+  detail: {
+    tags: ["Dispatchers"],
+    description: "",
+  },
 };
 
 export const dispatchersList = async ({

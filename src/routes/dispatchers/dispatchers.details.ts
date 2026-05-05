@@ -14,6 +14,11 @@ export const dispatcherTripDetailsSchema = {
   params: t.Object({
     bookingId: t.String(),
   }),
+
+  detail: {
+    tags: ["Dispatchers"],
+    description: "",
+  },
 };
 
 export const dispatcherTripDetails = async ({

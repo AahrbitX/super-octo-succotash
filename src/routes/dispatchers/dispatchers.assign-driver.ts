@@ -17,6 +17,10 @@ export const dispatcherAssignDriverSchema = {
   body: t.Object({
     driverId: t.String(),
   }),
+  detail: {
+    tags: ["Dispatchers"],
+    description: "",
+  },
 };
 
 export const dispatcherAssignDriver = async ({

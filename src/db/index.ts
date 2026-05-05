@@ -19,6 +19,8 @@ if (!connectionString) {
 
 // Disable prefetch as it can cause issues in certain environments/Docker
 const client = postgres(connectionString, { prepare: false });
+// Added this to set schema path to public
+await client`SET search_path TO public`;
 
 export const db = drizzle(client, {
   schema: { ...schema, ...authSchema },

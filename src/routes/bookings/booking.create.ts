@@ -26,6 +26,11 @@ export const createBookingSchema = {
     ac: t.Boolean(),
     totalFare: t.String(),
   }),
+  detail: {
+    tags: ["Bookings"],
+    operationId: "createBooking",
+    description: "",
+  },
 };
 
 const createBooking = async ({

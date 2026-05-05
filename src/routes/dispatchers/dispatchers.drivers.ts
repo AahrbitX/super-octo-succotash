@@ -1,5 +1,3 @@
-// src/routes/dispatchers/dispatchers.drivers.ts
-
 import { t } from "elysia";
 import { and, asc, eq, sql } from "drizzle-orm";
 
@@ -22,6 +20,11 @@ export const dispatcherSuggestedDriversSchema = {
     ac: t.Optional(t.String()),
     seats: t.Optional(t.String()),
   }),
+
+  detail: {
+    tags: ["Dispatchers"],
+    description: "",
+  },
 };
 
 export const dispatcherSuggestedDrivers = async ({

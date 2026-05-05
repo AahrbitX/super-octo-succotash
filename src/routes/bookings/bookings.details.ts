@@ -1,14 +1,21 @@
 import { db } from "@/db";
 import { logger } from "@/lib/logging";
+import { alias } from "drizzle-orm/pg-core";
 
 import { eq } from "drizzle-orm";
-import { user as usersTable } from "@/db/auth-schema";
 import {
   places as placesTable,
   bookings as bookingsTable,
   drivers as driversTable,
 } from "@/db/schema";
-import { alias } from "drizzle-orm/pg-core";
+import { user as usersTable } from "@/db/auth-schema";
+
+export const bookingDetailsSchema = {
+  detail: {
+    tags: ["Bookings"],
+    description: "",
+  },
+};
 
 const bookingDetails = async ({
   user,

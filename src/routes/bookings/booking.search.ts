@@ -24,6 +24,10 @@ export const searchBookingSchema = {
     page: t.Optional(t.String()),
     pageSize: t.Optional(t.String()),
   }),
+  detail: {
+    tags: ["Bookings"],
+    description: "",
+  },
 };
 
 const searchBooking = async ({
