@@ -55,5 +55,10 @@ export const auth = betterAuth({
   // For local dev, you can disable HTTPS requirement
   advanced: {
     cookiePrefix: "mohan-cabs",
+    defaultCookieAttributes: {
+      sameSite: "none",
+      secure: process.env.NODE_ENV === "production", // Only secure in production
+      httpOnly: true,
+    },
   },
 });
