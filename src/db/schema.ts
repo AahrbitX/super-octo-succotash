@@ -161,6 +161,10 @@ export const drivers = pgTable(
     currentLat: numeric("current_lat", { precision: 10, scale: 7 }),
     currentLng: numeric("current_lng", { precision: 10, scale: 7 }),
     lastLocationAt: timestamp("last_location_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

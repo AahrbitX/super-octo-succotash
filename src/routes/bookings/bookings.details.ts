@@ -194,11 +194,8 @@ const bookingDetails = async ({
       source: booking.source,
 
       rider,
-
       driver,
-
       route,
-
       info,
 
       trip: {

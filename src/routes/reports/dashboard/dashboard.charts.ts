@@ -1,6 +1,6 @@
 import { t } from "elysia";
 import { db } from "@/db";
-import { sql, eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { bookings as bookingsTable } from "@/db/schema";
 
 export const dashboardChartsSchema = {
