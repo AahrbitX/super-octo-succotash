@@ -1,0 +1,26 @@
+services:
+  cabs-api:
+    image: abinjustinkumarave/mohancabs-api:latest
+    container_name: cabs-api
+    networks:
+      - traefik-net
+    env_file:
+      - .env
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      # HTTPS router
+      - "traefik.http.routers.cabs-api.rule=Host(`cabsapi.aahrbitx.in`)"
+      - "traefik.http.routers.cabs-api.entrypoints=websecure"
+      - "traefik.http.routers.cabs-api.tls=true"
+      - "traefik.http.routers.cabs-api.tls.certresolver=letsencrypt"
+      # Service
+      - "traefik.http.services.cabs-api.loadbalancer.server.port=4000"
+      # HTTP → HTTPS redirect
+      - "traefik.http.routers.cabs-api-http.rule=Host(`cabsapi.aahrbitx.in`)"
+      - "traefik.http.routers.cabs-api-http.entrypoints=web"
+      - "traefik.http.routers.cabs-api-http.middlewares=https-redirect"
+
+networks:
+  traefik-net:
+    external: true
