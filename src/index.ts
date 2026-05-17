@@ -12,6 +12,8 @@ import { usersRouter } from "./routes/users";
 import { driversRouter } from "./routes/drivers";
 import { dispatchersRouter } from "./routes/dispatchers";
 import { reportsRouter } from "./routes/reports";
+import { otpVerify, otpVerifySchema } from "./routes/users/users.otp-verify";
+import { otpComplete, otpCompleteSchema } from "./routes/users/users.onboarding";
 
 const app = new Elysia()
 
@@ -77,6 +79,8 @@ const app = new Elysia()
   // Mouting others routers - Business logic
   .group("/api", (app) =>
     app
+      .post("/auth/otp-verify", otpVerify, otpVerifySchema)
+      .post("/auth/otp-complete", otpComplete, otpCompleteSchema)
       .use(bookingsRouter)
       .use(dispatchersRouter)
       .use(placesRouter)

@@ -26,7 +26,7 @@ export const auth = betterAuth({
   user: {
     additionalFields: {
       role: { type: "string", defaultValue: "user" },
-      dob: { type: "string" },
+      dob: { type: "string", required: false },
     },
   },
   emailAndPassword: {
@@ -56,8 +56,8 @@ export const auth = betterAuth({
   advanced: {
     cookiePrefix: "mohan-cabs",
     defaultCookieAttributes: {
-      sameSite: "none",
-      secure: process.env.NODE_ENV === "production", // Only secure in production
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      secure: process.env.NODE_ENV === "production",
       httpOnly: true,
     },
   },

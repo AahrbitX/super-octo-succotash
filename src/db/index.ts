@@ -18,7 +18,8 @@ if (!connectionString) {
 }
 
 // Disable prefetch as it can cause issues in certain environments/Docker
-const client = postgres(connectionString, { prepare: false });
+// ssl: 'require' is needed for NeonDB
+const client = postgres(connectionString, { prepare: false, ssl: "require" });
 // Added this to set schema path to public
 await client`SET search_path TO public`;
 
