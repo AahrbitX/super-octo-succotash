@@ -13,8 +13,12 @@ export const createBookingSchema = {
     source: t.String(),
     pickupName: t.String(),
     pickupZone: t.String(),
+    pickupLat: t.Optional(t.Number()),
+    pickupLng: t.Optional(t.Number()),
     dropName: t.String(),
     dropZone: t.String(),
+    dropLat: t.Optional(t.Number()),
+    dropLng: t.Optional(t.Number()),
     journeyDate: t.String(),
     journeyTime: t.String(),
     members: t.Number(),
@@ -64,9 +68,13 @@ const createBooking = async ({
 
       pickupName,
       pickupZone,
+      pickupLat,
+      pickupLng,
 
       dropName,
       dropZone,
+      dropLat,
+      dropLng,
 
       journeyDate,
       journeyTime,
@@ -87,39 +95,24 @@ const createBooking = async ({
       .limit(1);
 
     if (!pickup) {
-      logger.info(
-        {
-          requestId,
-          module: "bookings",
-          step: "create_pickup_place",
-          placeName: pickupName,
-          zone: pickupZone,
-        },
-        "Pickup place not found. Creating new place",
-      );
-
+      logger.info({ requestId, module: "bookings", step: "create_pickup_place", placeName: pickupName }, "Pickup place not found. Creating new place");
       [pickup] = await db
         .insert(placesTable)
         .values({
           id: generatePlaceId(),
           name: pickupName,
           zone: pickupZone,
+          lat: pickupLat != null ? String(pickupLat) : null,
+          lng: pickupLng != null ? String(pickupLng) : null,
         })
         .returning();
-
-      if (!pickup) {
-        logger.error(
-          {
-            requestId,
-            module: "bookings",
-            step: "create_pickup_place",
-            placeName: pickupName,
-          },
-          "Failed to create pickup place",
-        );
-
-        throw new Error("Unable to create pickup location");
-      }
+      if (!pickup) throw new Error("Unable to create pickup location");
+    } else if (pickupLat != null && pickupLng != null && (pickup.lat == null || pickup.lng == null)) {
+      // Backfill coordinates on an existing place that had none — id unchanged
+      await db
+        .update(placesTable)
+        .set({ lat: String(pickupLat), lng: String(pickupLng) })
+        .where(eq(placesTable.id, pickup.id));
     }
 
     let [drop] = await db
@@ -129,39 +122,23 @@ const createBooking = async ({
       .limit(1);
 
     if (!drop) {
-      logger.info(
-        {
-          requestId,
-          module: "bookings",
-          step: "create_drop_place",
-          placeName: dropName,
-          zone: dropZone,
-        },
-        "Drop place not found. Creating new place",
-      );
-
+      logger.info({ requestId, module: "bookings", step: "create_drop_place", placeName: dropName }, "Drop place not found. Creating new place");
       [drop] = await db
         .insert(placesTable)
         .values({
           id: generatePlaceId(),
           name: dropName,
           zone: dropZone,
+          lat: dropLat != null ? String(dropLat) : null,
+          lng: dropLng != null ? String(dropLng) : null,
         })
         .returning();
-
-      if (!drop) {
-        logger.error(
-          {
-            requestId,
-            module: "bookings",
-            step: "create_drop_place",
-            placeName: dropName,
-          },
-          "Failed to create drop place",
-        );
-
-        throw new Error("Unable to create drop location");
-      }
+      if (!drop) throw new Error("Unable to create drop location");
+    } else if (dropLat != null && dropLng != null && (drop.lat == null || drop.lng == null)) {
+      await db
+        .update(placesTable)
+        .set({ lat: String(dropLat), lng: String(dropLng) })
+        .where(eq(placesTable.id, drop.id));
     }
 
     const linkedUserId = source === "self" ? user.id : null;

@@ -12,6 +12,7 @@ import { usersRouter } from "./routes/users";
 import { driversRouter } from "./routes/drivers";
 import { dispatchersRouter } from "./routes/dispatchers";
 import { reportsRouter } from "./routes/reports";
+import { paymentsRouter } from "./routes/payments";
 
 const app = new Elysia()
 
@@ -83,7 +84,8 @@ const app = new Elysia()
       .use(reviewsRouter)
       .use(usersRouter)
       .use(driversRouter)
-      .use(reportsRouter),
+      .use(reportsRouter)
+      .use(paymentsRouter),
   )
 
   // Listen to 4000 port

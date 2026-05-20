@@ -43,6 +43,8 @@ export const places = pgTable(
     id: text("id").primaryKey(),
     name: varchar("name", { length: 150 }).notNull(),
     zone: varchar("zone", { length: 100 }).notNull(),
+    lat: numeric("lat", { precision: 10, scale: 7 }),
+    lng: numeric("lng", { precision: 10, scale: 7 }),
     baseFare: numeric("base_fare", { precision: 8, scale: 2 }),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -120,6 +122,7 @@ export const payments = pgTable("payments", {
     .default("500.00"),
   currency: varchar("currency", { length: 3 }).notNull().default("INR"),
   status: paymentStatusEnum("status").notNull().default("created"),
+  mode: varchar("mode", { length: 10 }).notNull().default("full"),
   refundId: varchar("refund_id", { length: 100 }),
   refundedBy: text("refunded_by").references(() => user.id),
   paidAt: timestamp("paid_at", { withTimezone: true }),

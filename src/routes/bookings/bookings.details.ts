@@ -62,10 +62,14 @@ const bookingDetails = async ({
       pickupId: pickupPlaceTable.id,
       pickupName: pickupPlaceTable.name,
       pickupZone: pickupPlaceTable.zone,
+      pickupLat: pickupPlaceTable.lat,
+      pickupLng: pickupPlaceTable.lng,
 
       dropId: dropPlaceTable.id,
       dropName: dropPlaceTable.name,
       dropZone: dropPlaceTable.zone,
+      dropLat: dropPlaceTable.lat,
+      dropLng: dropPlaceTable.lng,
 
       totalFare: bookingsTable.totalFare,
       status: bookingsTable.status,
@@ -169,10 +173,14 @@ const bookingDetails = async ({
   };
 
   const route = {
-    pickUp: booking.pickupName,
+    pickupName: booking.pickupName,
     pickupZone: booking.pickupZone,
-    drop: booking.dropName,
+    pickupLat: booking.pickupLat ? parseFloat(booking.pickupLat) : null,
+    pickupLng: booking.pickupLng ? parseFloat(booking.pickupLng) : null,
+    dropName: booking.dropName,
     dropZone: booking.dropZone,
+    dropLat: booking.dropLat ? parseFloat(booking.dropLat) : null,
+    dropLng: booking.dropLng ? parseFloat(booking.dropLng) : null,
   };
 
   logger.info(
