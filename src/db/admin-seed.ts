@@ -8,7 +8,7 @@ async function createAdmin() {
         email: `${adminPhone}@mohan-cabs.com`,
         password: "adminpassword",
         name: "Karthikeyan",
-        role: "user",
+        role: "admin",
         phoneNumber: adminPhone,
         dob: "10-12-2002",
       },
