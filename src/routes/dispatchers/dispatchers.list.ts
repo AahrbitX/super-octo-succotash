@@ -1,6 +1,6 @@
 import { t } from "elysia";
 import { alias } from "drizzle-orm/pg-core";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { desc, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
 import { logger } from "@/lib/logging";
@@ -61,9 +61,7 @@ export const dispatchersList = async ({
     .from(bookingsTable)
     .leftJoin(pickupPlaceTable, eq(bookingsTable.pickupId, pickupPlaceTable.id))
     .leftJoin(dropPlaceTable, eq(bookingsTable.dropId, dropPlaceTable.id))
-    .where(
-      and(isNull(bookingsTable.driverId), eq(bookingsTable.status, "pending")),
-    )
+    .where(isNull(bookingsTable.driverId))
     .orderBy(desc(bookingsTable.createdAt))
     .limit(limit);
 

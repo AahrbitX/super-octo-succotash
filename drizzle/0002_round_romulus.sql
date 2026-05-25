@@ -1,0 +1,1 @@
+ALTER TABLE "drivers" ALTER COLUMN "collection_code" DROP NOT NULL;

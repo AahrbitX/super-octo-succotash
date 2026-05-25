@@ -3,6 +3,13 @@ import { auth } from "@/lib/auth";
 import { logger } from "@/lib/logging";
 import { createOrder, createOrderSchema } from "./payment.create-order";
 import { verifyPayment, verifyPaymentSchema } from "./payment.verify";
+import { listTransactions, listTransactionsSchema } from "./payment.list";
+import { markCash, markCashSchema } from "./payment.mark-cash";
+import { createBalancePayment, createBalancePaymentSchema } from "./payment.create-balance";
+import { verifyCode, verifyCodeSchema } from "./payment.verify-code";
+import { adminVerify, adminVerifySchema } from "./payment.admin-verify";
+import { resendCode, resendCodeSchema } from "./payment.resend-code";
+import { notifyDriver, notifyDriverSchema } from "./payment.notify-driver";
 
 export const paymentsRouter = new Elysia({ prefix: "/payments" })
   .derive(async ({ request, set }) => {
@@ -14,5 +21,12 @@ export const paymentsRouter = new Elysia({ prefix: "/payments" })
     }
     return { user: session.user };
   })
-  .post("/create-order", createOrder, createOrderSchema)
-  .post("/verify",       verifyPayment, verifyPaymentSchema);
+  .get("/my-transactions",       listTransactions, listTransactionsSchema)
+  .post("/create-order",         createOrder,      createOrderSchema)
+  .post("/verify",               verifyPayment,    verifyPaymentSchema)
+  .post("/:id/create-balance",   createBalancePayment, createBalancePaymentSchema)
+  .post("/:id/notify-driver",    notifyDriver,     notifyDriverSchema)
+  .post("/:id/mark-cash",        markCash,         markCashSchema)
+  .post("/:id/verify-code",      verifyCode,       verifyCodeSchema)
+  .post("/:id/resend-code",      resendCode,       resendCodeSchema)
+  .patch("/:id/admin-verify",    adminVerify,      adminVerifySchema);

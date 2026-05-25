@@ -7,6 +7,7 @@ import {
   places as placesTable,
   bookings as bookingsTable,
   drivers as driversTable,
+  payments as paymentsTable,
 } from "@/db/schema";
 import { user as usersTable } from "@/db/auth-schema";
 
@@ -87,6 +88,16 @@ const bookingDetails = async ({
       vehicleNumber: driversTable.vehicleNumber,
       driverVehicleType: driversTable.vehicleType,
       driverAc: driversTable.ac,
+
+      paymentId: paymentsTable.id,
+      paymentAmount: paymentsTable.amount,
+      paymentStatus: paymentsTable.status,
+      paymentMethod: paymentsTable.paymentMethod,
+      paymentMode: paymentsTable.mode,
+      paymentPaidAt: paymentsTable.paidAt,
+      paymentCashVerifiedAt: paymentsTable.cashVerifiedAt,
+      paymentAdminVerifiedBy: paymentsTable.adminVerifiedBy,
+      paymentAdminVerifiedAt: paymentsTable.adminVerifiedAt,
     })
     .from(bookingsTable)
     .leftJoin(usersTable, eq(bookingsTable.userId, usersTable.id))
@@ -94,6 +105,7 @@ const bookingDetails = async ({
     .leftJoin(driverUserTable, eq(driversTable.userId, driverUserTable.id))
     .leftJoin(pickupPlaceTable, eq(bookingsTable.pickupId, pickupPlaceTable.id))
     .leftJoin(dropPlaceTable, eq(bookingsTable.dropId, dropPlaceTable.id))
+    .leftJoin(paymentsTable, eq(paymentsTable.bookingId, bookingsTable.id))
     .where(eq(bookingsTable.id, params.id))
     .limit(1);
 
@@ -215,7 +227,16 @@ const bookingDetails = async ({
       },
 
       payment: {
+        id: booking.paymentId,
         fare: booking.totalFare,
+        amount: booking.paymentAmount,
+        status: booking.paymentStatus,
+        method: booking.paymentMethod,
+        mode: booking.paymentMode,
+        paidAt: booking.paymentPaidAt,
+        cashVerifiedAt: booking.paymentCashVerifiedAt,
+        adminVerifiedBy: booking.paymentAdminVerifiedBy,
+        adminVerifiedAt: booking.paymentAdminVerifiedAt,
       },
 
       status: booking.status,

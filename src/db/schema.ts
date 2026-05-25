@@ -32,6 +32,8 @@ export const bookingStatusEnum = pgEnum("booking_status", [
 export const paymentStatusEnum = pgEnum("payment_status", [
   "created",
   "paid",
+  "cash_pending",
+  "cash_collected",
   "refunded",
   "failed",
 ]);
@@ -126,6 +128,11 @@ export const payments = pgTable("payments", {
   refundId: varchar("refund_id", { length: 100 }),
   refundedBy: text("refunded_by").references(() => user.id),
   paidAt: timestamp("paid_at", { withTimezone: true }),
+  paymentMethod: varchar("payment_method", { length: 10 }).notNull().default("online"),
+  cashCode: varchar("cash_code", { length: 10 }),
+  cashVerifiedAt: timestamp("cash_verified_at", { withTimezone: true }),
+  adminVerifiedBy: text("admin_verified_by").references(() => user.id),
+  adminVerifiedAt: timestamp("admin_verified_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -161,6 +168,7 @@ export const drivers = pgTable(
     vehicleType: vehicleTypeEnum("vehicle_type").notNull(),
     ac: boolean("ac").notNull().default(true),
     isAvailable: boolean("is_available").notNull().default(true),
+    collectionCode: varchar("collection_code", { length: 10 }).unique(),
     currentLat: numeric("current_lat", { precision: 10, scale: 7 }),
     currentLng: numeric("current_lng", { precision: 10, scale: 7 }),
     lastLocationAt: timestamp("last_location_at", { withTimezone: true }),

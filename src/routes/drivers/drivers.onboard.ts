@@ -5,6 +5,11 @@ import { t } from "elysia";
 import { auth } from "@/lib/auth";
 import { generateDriverId } from "@/utils/id";
 import { drivers as driversTable } from "@/db/schema";
+import { nanoid } from "nanoid";
+
+function generateCollectionCode(): string {
+  return nanoid(6).toUpperCase();
+}
 
 export const onboardDriverSchema = {
   body: t.Object({
@@ -120,6 +125,7 @@ export const onboardDriver = async ({
           vehicleType: body.vehicleType,
           ac: body.ac,
           isAvailable: true,
+          collectionCode: generateCollectionCode(),
         })
         .returning();
 
