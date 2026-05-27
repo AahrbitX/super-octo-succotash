@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { usersList, usersListSchema } from "./users.list";
 import { userDetails, userDetailsSchema } from "./users.details";
 import { createUser, createUserSchema } from "./users.create";
+import { userStats, userStatsSchema } from "./users.stats";
 
 export const usersRouter = new Elysia({ prefix: "/users" })
   .derive(async ({ request, set }) => {
@@ -15,5 +16,6 @@ export const usersRouter = new Elysia({ prefix: "/users" })
     return { user: session.user };
   })
   .get("/", usersList, usersListSchema)
+  .get("/stats", userStats, userStatsSchema)
   .get("/:id", userDetails, userDetailsSchema)
   .post("/", createUser, createUserSchema);

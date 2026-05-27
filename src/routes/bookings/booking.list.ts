@@ -9,6 +9,9 @@ import { user as usersTable } from "@/db/auth-schema";
 import {
   bookings as bookingsTable,
   drivers as driversTable,
+  places as placesTable,
+  reviews as reviewsTable,
+  payments as paymentsTable,
 } from "@/db/schema";
 
 export const bookingListSchema = {
@@ -59,6 +62,8 @@ const bookingList = async ({
    * So alias second join
    */
   const driverUsers = alias(usersTable, "driver_users");
+  const pickupPlaces = alias(placesTable, "pickup_places");
+  const dropPlaces = alias(placesTable, "drop_places");
 
   const whereCondition = isAdmin
     ? undefined
@@ -67,6 +72,7 @@ const bookingList = async ({
   const dataQuery = db
     .select({
       id: bookingsTable.id,
+      bookingRef: bookingsTable.bookingRef,
       rider: sql<string>`
         COALESCE(
           ${usersTable.name},
@@ -75,10 +81,39 @@ const bookingList = async ({
       `,
       bookingDate: bookingsTable.createdAt,
       driver: driverUsers.name,
+      driverPhone: driverUsers.phoneNumber,
       source: bookingsTable.source,
       driverId: bookingsTable.driverId,
       status: bookingsTable.status,
       fare: bookingsTable.totalFare,
+      pickupName: pickupPlaces.name,
+      dropName: dropPlaces.name,
+      journeyDate: bookingsTable.journeyDate,
+      journeyTime: bookingsTable.journeyTime,
+      vehicleType: bookingsTable.vehicleType,
+      rating: reviewsTable.rating,
+      // Latest payment record for mode/status/id (correlated subquery — avoids row duplication from join)
+      payMode: sql<string>`(
+        SELECT mode FROM payments
+        WHERE booking_id = ${bookingsTable.id}
+        ORDER BY created_at DESC LIMIT 1
+      )`,
+      payStatus: sql<string>`(
+        SELECT status FROM payments
+        WHERE booking_id = ${bookingsTable.id}
+        ORDER BY created_at DESC LIMIT 1
+      )`,
+      // Sum of all confirmed payments — used to detect balance still due
+      payAmount: sql<string>`(
+        SELECT COALESCE(SUM(amount), 0)::text FROM payments
+        WHERE booking_id = ${bookingsTable.id}
+        AND status IN ('paid', 'cash_collected')
+      )`,
+      payId: sql<string>`(
+        SELECT id FROM payments
+        WHERE booking_id = ${bookingsTable.id}
+        ORDER BY created_at DESC LIMIT 1
+      )`,
     })
     .from(bookingsTable)
 
@@ -96,6 +131,13 @@ const bookingList = async ({
      * drivers.userId -> user.id
      */
     .leftJoin(driverUsers, eq(driversTable.userId, driverUsers.id))
+
+    /**
+     * Pickup and drop place names
+     */
+    .leftJoin(pickupPlaces, eq(bookingsTable.pickupId, pickupPlaces.id))
+    .leftJoin(dropPlaces, eq(bookingsTable.dropId, dropPlaces.id))
+    .leftJoin(reviewsTable, eq(bookingsTable.id, reviewsTable.bookingId))
 
     .where(whereCondition)
     .orderBy(desc(bookingsTable.createdAt))

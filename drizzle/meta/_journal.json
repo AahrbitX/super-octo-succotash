@@ -22,6 +22,20 @@
       "when": 1779348239045,
       "tag": "0002_round_romulus",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779728247622,
+      "tag": "0003_nasty_strong_guy",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779733467740,
+      "tag": "0004_brown_captain_cross",
+      "breakpoints": true
     }
   ]
 }

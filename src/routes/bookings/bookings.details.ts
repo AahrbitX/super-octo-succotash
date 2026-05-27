@@ -3,11 +3,13 @@ import { logger } from "@/lib/logging";
 import { alias } from "drizzle-orm/pg-core";
 
 import { eq } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import {
   places as placesTable,
   bookings as bookingsTable,
   drivers as driversTable,
   payments as paymentsTable,
+  reviews as reviewsTable,
 } from "@/db/schema";
 import { user as usersTable } from "@/db/auth-schema";
 
@@ -75,8 +77,11 @@ const bookingDetails = async ({
       totalFare: bookingsTable.totalFare,
       status: bookingsTable.status,
 
-      createdAt: bookingsTable.createdAt,
-      updatedAt: bookingsTable.updatedAt,
+      createdAt:    bookingsTable.createdAt,
+      confirmedAt:  bookingsTable.confirmedAt,
+      rideStartedAt: bookingsTable.rideStartedAt,
+      rideEndedAt:  bookingsTable.rideEndedAt,
+      updatedAt:    bookingsTable.updatedAt,
 
       riderUserName: usersTable.name,
       riderPhone: usersTable.phoneNumber,
@@ -89,15 +94,9 @@ const bookingDetails = async ({
       driverVehicleType: driversTable.vehicleType,
       driverAc: driversTable.ac,
 
-      paymentId: paymentsTable.id,
-      paymentAmount: paymentsTable.amount,
-      paymentStatus: paymentsTable.status,
-      paymentMethod: paymentsTable.paymentMethod,
-      paymentMode: paymentsTable.mode,
-      paymentPaidAt: paymentsTable.paidAt,
-      paymentCashVerifiedAt: paymentsTable.cashVerifiedAt,
-      paymentAdminVerifiedBy: paymentsTable.adminVerifiedBy,
-      paymentAdminVerifiedAt: paymentsTable.adminVerifiedAt,
+      reviewRating:     reviewsTable.rating,
+      reviewComment:    reviewsTable.comment,
+      reviewSubmittedAt: reviewsTable.submittedAt,
     })
     .from(bookingsTable)
     .leftJoin(usersTable, eq(bookingsTable.userId, usersTable.id))
@@ -105,7 +104,7 @@ const bookingDetails = async ({
     .leftJoin(driverUserTable, eq(driversTable.userId, driverUserTable.id))
     .leftJoin(pickupPlaceTable, eq(bookingsTable.pickupId, pickupPlaceTable.id))
     .leftJoin(dropPlaceTable, eq(bookingsTable.dropId, dropPlaceTable.id))
-    .leftJoin(paymentsTable, eq(paymentsTable.bookingId, bookingsTable.id))
+    .leftJoin(reviewsTable, eq(reviewsTable.bookingId, bookingsTable.id))
     .where(eq(bookingsTable.id, params.id))
     .limit(1);
 
@@ -195,6 +194,25 @@ const bookingDetails = async ({
     dropLng: booking.dropLng ? parseFloat(booking.dropLng) : null,
   };
 
+  // Fetch all payment records for this booking (separate query — avoids
+  // leftJoin duplicating the booking row when multiple payments exist)
+  const paymentRows = await db
+    .select({
+      id:               paymentsTable.id,
+      amount:           paymentsTable.amount,
+      status:           paymentsTable.status,
+      paymentMethod:    paymentsTable.paymentMethod,
+      mode:             paymentsTable.mode,
+      paidAt:           paymentsTable.paidAt,
+      cashVerifiedAt:   paymentsTable.cashVerifiedAt,
+      adminVerifiedBy:  paymentsTable.adminVerifiedBy,
+      adminVerifiedAt:  paymentsTable.adminVerifiedAt,
+      createdAt:        paymentsTable.createdAt,
+    })
+    .from(paymentsTable)
+    .where(eq(paymentsTable.bookingId, params.id))
+    .orderBy(desc(paymentsTable.createdAt));
+
   logger.info(
     {
       module: "bookings",
@@ -204,6 +222,9 @@ const bookingDetails = async ({
     },
     "Booking details fetched successfully",
   );
+
+  // Latest successful payment for summary fields (fare display, method, etc.)
+  const latestPayment = paymentRows[0] ?? null;
 
   return {
     success: true,
@@ -226,20 +247,46 @@ const bookingDetails = async ({
         ac: booking.ac,
       },
 
+      // Single-payment summary for backward-compat (used by admin detail page)
       payment: {
-        id: booking.paymentId,
-        fare: booking.totalFare,
-        amount: booking.paymentAmount,
-        status: booking.paymentStatus,
-        method: booking.paymentMethod,
-        mode: booking.paymentMode,
-        paidAt: booking.paymentPaidAt,
-        cashVerifiedAt: booking.paymentCashVerifiedAt,
-        adminVerifiedBy: booking.paymentAdminVerifiedBy,
-        adminVerifiedAt: booking.paymentAdminVerifiedAt,
+        fare:           booking.totalFare,
+        amount:         latestPayment?.amount ?? null,
+        status:         latestPayment?.status ?? null,
+        method:         latestPayment?.paymentMethod ?? null,
+        mode:           latestPayment?.mode ?? null,
+        paidAt:         latestPayment?.paidAt ?? null,
+        id:             latestPayment?.id ?? null,
       },
 
+      // Full transaction history — all payment attempts for this booking
+      transactions: paymentRows.map((p) => ({
+        id:            p.id,
+        amount:        p.amount,
+        status:        p.status,
+        method:        p.paymentMethod,
+        mode:          p.mode,
+        paidAt:        p.paidAt,
+        cashVerifiedAt: p.cashVerifiedAt,
+        createdAt:     p.createdAt,
+      })),
+
       status: booking.status,
+
+      // Timestamps for each status milestone
+      timeline: {
+        pending:   booking.createdAt,
+        confirmed: booking.confirmedAt ?? null,
+        ongoing:   booking.rideStartedAt ?? null,
+        completed: booking.rideEndedAt ?? null,
+      },
+
+      review: booking.reviewRating
+        ? {
+            rating:      booking.reviewRating,
+            comment:     booking.reviewComment ?? null,
+            submittedAt: booking.reviewSubmittedAt,
+          }
+        : null,
 
       timestamps: {
         createdAt: booking.createdAt,

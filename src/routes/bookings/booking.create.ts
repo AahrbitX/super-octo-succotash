@@ -23,6 +23,7 @@ export const createBookingSchema = {
     journeyTime: t.String(),
     members: t.Number(),
     vehicleType: t.Union([
+      t.Literal("hatchback"),
       t.Literal("sedan"),
       t.Literal("suv"),
       t.Literal("minivan"),
@@ -142,6 +143,9 @@ const createBooking = async ({
     }
 
     const linkedUserId = source === "self" ? user.id : null;
+    // Admin-created bookings are confirmed immediately (payment collected separately).
+    // Self-booked rides stay pending until online payment is verified.
+    const initialStatus = source === "admin" ? "confirmed" : "pending";
 
     const [booking] = await db
       .insert(bookingsTable)
@@ -153,6 +157,7 @@ const createBooking = async ({
         customerName,
         customerPhone,
         source,
+        status: initialStatus,
         pickupId: pickup.id,
         dropId: drop.id,
         journeyDate,

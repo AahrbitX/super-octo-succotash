@@ -1,0 +1,1 @@
+CREATE INDEX "idx_bookings_journey_driver" ON "bookings" USING btree ("journey_date","driver_id","status");

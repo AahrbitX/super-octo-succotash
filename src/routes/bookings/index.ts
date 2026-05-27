@@ -6,6 +6,8 @@ import { bookingList, bookingListSchema } from "./booking.list";
 import { createBooking, createBookingSchema } from "./booking.create";
 import { searchBooking, searchBookingSchema } from "./booking.search";
 import { bookingDetails, bookingDetailsSchema } from "./bookings.details";
+import { cancelBooking } from "./booking.cancel";
+import { completeBooking } from "./booking.complete";
 
 export const bookingsRouter = new Elysia({ prefix: "/bookings" })
   .derive(async ({ request, set }) => {
@@ -27,6 +29,8 @@ export const bookingsRouter = new Elysia({ prefix: "/bookings" })
     return { user: session.user };
   })
   .get("/", bookingList, bookingListSchema)
+  .get("/search", searchBooking, searchBookingSchema)
   .get("/:id", bookingDetails, bookingDetailsSchema)
   .post("/create", createBooking, createBookingSchema)
-  .get("/search", searchBooking, searchBookingSchema);
+  .patch("/:id/cancel", cancelBooking)
+  .patch("/:id/complete", completeBooking);

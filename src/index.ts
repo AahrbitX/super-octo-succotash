@@ -6,6 +6,7 @@ import { openapi, fromTypes } from "@elysia/openapi";
 
 // other Routers
 import { bookingsRouter } from "./routes/bookings/index";
+import { driverRouter } from "./routes/driver";
 import { placesRouter } from "./routes/places";
 import { reviewsRouter } from "./routes/review";
 import { usersRouter } from "./routes/users";
@@ -13,6 +14,7 @@ import { driversRouter } from "./routes/drivers";
 import { dispatchersRouter } from "./routes/dispatchers";
 import { reportsRouter } from "./routes/reports";
 import { paymentsRouter } from "./routes/payments";
+import { ticketsRouter } from "./routes/tickets";
 
 const app = new Elysia()
 
@@ -79,13 +81,15 @@ const app = new Elysia()
   .group("/api", (app) =>
     app
       .use(bookingsRouter)
+      .use(driverRouter)
       .use(dispatchersRouter)
       .use(placesRouter)
       .use(reviewsRouter)
       .use(usersRouter)
       .use(driversRouter)
       .use(reportsRouter)
-      .use(paymentsRouter),
+      .use(paymentsRouter)
+      .use(ticketsRouter),
   )
 
   // Listen to 4000 port

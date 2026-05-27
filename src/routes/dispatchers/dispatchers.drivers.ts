@@ -1,13 +1,32 @@
 import { t } from "elysia";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, not, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 import { db } from "@/db";
 import { user as usersTable } from "@/db/auth-schema";
-
 import {
   bookings as bookingsTable,
   drivers as driversTable,
+  places as placesTable,
 } from "@/db/schema";
+
+const AVG_SPEED_KMPH = 40;
+const DEFAULT_HOURS  = 4;
+
+function haversineKm(
+  lat1: number, lng1: number,
+  lat2: number, lng2: number,
+): number {
+  const R    = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a    =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+    Math.cos((lat2 * Math.PI) / 180) *
+    Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 export const dispatcherSuggestedDriversSchema = {
   params: t.Object({
@@ -15,15 +34,15 @@ export const dispatcherSuggestedDriversSchema = {
   }),
 
   query: t.Object({
-    search: t.Optional(t.String()),
+    search:      t.Optional(t.String()),
     vehicleType: t.Optional(t.String()),
-    ac: t.Optional(t.String()),
-    seats: t.Optional(t.String()),
+    ac:          t.Optional(t.String()),
+    seats:       t.Optional(t.String()),
   }),
 
   detail: {
     tags: ["Dispatchers"],
-    description: "",
+    description: "List all drivers with optional filters and conflict badge for overlapping rides",
   },
 };
 
@@ -33,76 +52,123 @@ export const dispatcherSuggestedDrivers = async ({
   set,
 }: {
   params: { bookingId: string };
-  query: {
-    search?: string;
-    vehicleType?: string;
-    ac?: string;
-    seats?: string;
-  };
+  query: { search?: string; vehicleType?: string; ac?: string; seats?: string };
   set: any;
 }) => {
+  const pickupPlace = alias(placesTable, "pickup_place");
+  const dropPlace   = alias(placesTable, "drop_place");
+
+  // Fetch booking + pickup/drop coordinates for distance-based conflict window
   const [booking] = await db
     .select({
       vehicleType: bookingsTable.vehicleType,
-      ac: bookingsTable.ac,
-      seats: bookingsTable.members,
+      ac:          bookingsTable.ac,
+      seats:       bookingsTable.members,
+      journeyDate: bookingsTable.journeyDate,
+      journeyTime: bookingsTable.journeyTime,
+      pickupLat:   pickupPlace.lat,
+      pickupLng:   pickupPlace.lng,
+      dropLat:     dropPlace.lat,
+      dropLng:     dropPlace.lng,
     })
     .from(bookingsTable)
+    .leftJoin(pickupPlace, eq(bookingsTable.pickupId, pickupPlace.id))
+    .leftJoin(dropPlace,   eq(bookingsTable.dropId,   dropPlace.id))
     .where(eq(bookingsTable.id, params.bookingId))
     .limit(1);
 
   if (!booking) {
     set.status = 404;
-    return {
-      message: "Booking not found",
-    };
+    return { message: "Booking not found" };
   }
 
-  const selectedVehicleType = query.vehicleType ?? booking.vehicleType;
+  // Compute ride window: haversine distance × 2 (up + return) / avg speed
+  const pLat = Number(booking.pickupLat);
+  const pLng = Number(booking.pickupLng);
+  const dLat = Number(booking.dropLat);
+  const dLng = Number(booking.dropLng);
+  const hasCoords = pLat && pLng && dLat && dLng;
 
-  const selectedAc = query.ac !== undefined ? query.ac === "true" : booking.ac;
+  const distanceKm    = hasCoords ? haversineKm(pLat, pLng, dLat, dLng) : 0;
+  const rideWindowHours = hasCoords
+    ? (distanceKm / AVG_SPEED_KMPH) * 2
+    : DEFAULT_HOURS;
 
-  const selectedSeats =
-    query.seats !== undefined ? Number(query.seats) : booking.seats;
+  // --- Build optional filter conditions ---
+  const conditions: any[] = [];
 
-  const conditions = [
-    eq(driversTable.isAvailable, true),
-    eq(driversTable.vehicleType, selectedVehicleType as any),
-    eq(driversTable.ac, selectedAc),
-  ];
+  if (query.vehicleType) {
+    conditions.push(eq(driversTable.vehicleType, query.vehicleType as any));
+  }
+
+  if (query.ac !== undefined && query.ac !== "") {
+    conditions.push(eq(driversTable.ac, query.ac === "true"));
+  }
 
   if (query.search?.trim()) {
     conditions.push(
       sql`(
         ${usersTable.name} ILIKE ${`%${query.search}%`}
-        OR ${driversTable.id} ILIKE ${`%${query.search}%`}
         OR ${driversTable.vehicleNumber} ILIKE ${`%${query.search}%`}
       )`,
     );
   }
 
-  const data = await db
+  // --- Fetch all drivers (no availability filter — show everyone) ---
+  const drivers = await db
     .select({
-      id: driversTable.id,
-      name: usersTable.name,
-      phone: usersTable.phoneNumber,
-      vehicleType: driversTable.vehicleType,
-      ac: driversTable.ac,
+      id:            driversTable.id,
+      name:          usersTable.name,
+      phone:         usersTable.phoneNumber,
+      vehicleType:   driversTable.vehicleType,
+      ac:            driversTable.ac,
       vehicleNumber: driversTable.vehicleNumber,
-      isAvailable: driversTable.isAvailable,
+      isAvailable:   driversTable.isAvailable,
     })
     .from(driversTable)
     .leftJoin(usersTable, eq(driversTable.userId, usersTable.id))
-    .where(and(...conditions))
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(asc(usersTable.name));
 
-  return {
-    filters: {
-      vehicleType: selectedVehicleType,
-      ac: selectedAc,
-      seats: selectedSeats,
-    },
+  // --- Conflict check: drivers with a booking whose journey time overlaps
+  //     the target booking within the computed ride-window hours ---
+  const conflictStatuses = ["pending", "confirmed", "ongoing"] as const;
 
-    data,
+  const conflictRows = await db
+    .select({ driverId: bookingsTable.driverId })
+    .from(bookingsTable)
+    .where(
+      and(
+        eq(bookingsTable.journeyDate, booking.journeyDate),
+        inArray(bookingsTable.status, conflictStatuses as any),
+        not(eq(bookingsTable.id, params.bookingId)),
+        sql`ABS(EXTRACT(EPOCH FROM (
+          ${bookingsTable.journeyTime}::time - ${booking.journeyTime}::time
+        )) / 3600.0) < ${rideWindowHours}`,
+      ),
+    );
+
+  const conflictDriverIds = new Set(conflictRows.map((r) => r.driverId).filter(Boolean));
+
+  const result = drivers.map((d) => ({
+    id:            d.id,
+    name:          d.name ?? "",
+    phone:         d.phone ?? "",
+    vehicleType:   d.vehicleType,
+    ac:            d.ac,
+    vehicleNumber: d.vehicleNumber,
+    isAvailable:   d.isAvailable,
+    hasConflict:   conflictDriverIds.has(d.id),
+    etaMin:        0,
+  }));
+
+  return {
+    // Return booking's requirements as suggested filter defaults for the UI
+    filters: {
+      vehicleType: booking.vehicleType,
+      ac:          booking.ac,
+      seats:       booking.seats,
+    },
+    data: result,
   };
 };
