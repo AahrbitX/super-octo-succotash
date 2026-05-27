@@ -5,6 +5,8 @@ import { usersList, usersListSchema } from "./users.list";
 import { userDetails, userDetailsSchema } from "./users.details";
 import { createUser, createUserSchema } from "./users.create";
 import { userStats, userStatsSchema } from "./users.stats";
+import { usersHasPassword, usersHasPasswordSchema } from "./users.has-password";
+import { usersSetPassword, usersSetPasswordSchema } from "./users.set-password";
 
 export const usersRouter = new Elysia({ prefix: "/users" })
   .derive(async ({ request, set }) => {
@@ -17,5 +19,7 @@ export const usersRouter = new Elysia({ prefix: "/users" })
   })
   .get("/", usersList, usersListSchema)
   .get("/stats", userStats, userStatsSchema)
+  .get("/me/has-password", usersHasPassword, usersHasPasswordSchema)
+  .post("/me/password", usersSetPassword, usersSetPasswordSchema)
   .get("/:id", userDetails, userDetailsSchema)
   .post("/", createUser, createUserSchema);
