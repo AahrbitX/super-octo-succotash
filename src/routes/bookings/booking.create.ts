@@ -3,8 +3,9 @@ import { logger } from "@/lib/logging";
 
 import { t } from "elysia";
 import { eq } from "drizzle-orm";
+import { nanoid } from "nanoid";
 import { generateBookingId, generatePlaceId } from "@/utils/id";
-import { bookings as bookingsTable, places as placesTable } from "@/db/schema";
+import { bookings as bookingsTable, places as placesTable, payments as paymentsTable } from "@/db/schema";
 
 export const createBookingSchema = {
   body: t.Object({
@@ -182,6 +183,25 @@ const createBooking = async ({
       );
 
       throw new Error("Unable to create booking");
+    }
+
+    // Admin-created bookings → cash is assumed collected at booking time (no driver verification needed).
+    // Record is created as cash_collected immediately.
+    if (source === "admin" && parseFloat(totalFare) > 0) {
+      await db.insert(paymentsTable).values({
+        bookingId: booking.id,
+        rzpOrderId: `cash_admin_${nanoid(8)}`,
+        amount: totalFare,
+        currency: "INR",
+        mode: "full",
+        status: "cash_collected",
+        paymentMethod: "cash",
+      });
+
+      logger.info(
+        { requestId, module: "payments", action: "auto-cash-collected", bookingId: booking.id, amount: totalFare },
+        "Cash payment auto-marked collected for admin booking",
+      );
     }
 
     logger.info(

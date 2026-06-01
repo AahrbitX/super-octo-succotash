@@ -1,5 +1,5 @@
 import { t } from "elysia";
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { logger } from "@/lib/logging";
 
 import { db } from "@/db";
@@ -80,6 +80,26 @@ export const updateDriver = async ({
         return {
           success: false,
           message: "Driver not found",
+        };
+      }
+
+      // Reject if the new phone is already taken by a different user
+      const [phoneConflict] = await tx
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(
+          and(
+            eq(usersTable.phoneNumber, body.phone),
+            ne(usersTable.id, existingDriver.userId),
+          ),
+        )
+        .limit(1);
+
+      if (phoneConflict) {
+        set.status = 409;
+        return {
+          success: false,
+          message: "This phone number is already in use by another account",
         };
       }
 

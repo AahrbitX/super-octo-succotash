@@ -1,5 +1,5 @@
 import { t } from "elysia";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db } from "@/db";
 import { logger } from "@/lib/logging";
@@ -68,47 +68,42 @@ export const createBalancePayment = async ({
     return { success: false, message: "No balance remaining on this booking" };
   }
 
-  // Guard: don't create a duplicate if one already exists for this booking+balance
-  const [existing] = await db
-    .select({ id: paymentsTable.id })
-    .from(paymentsTable)
-    .where(
-      and(
-        eq(paymentsTable.bookingId, source.bookingId),
-        eq(paymentsTable.mode, "balance"),
-      ),
-    )
-    .limit(1);
-
-  if (existing) {
-    // Return the existing balance payment so the UI can proceed
-    logger.info(
-      { module: "payments", action: "create-balance", existingId: existing.id },
-      "Balance payment already exists — returning existing record",
-    );
-    set.status = 200;
-    return { success: true, data: { paymentId: existing.id } };
-  }
-
-  // Create the cash balance payment record
+  // Atomic upsert — the unique partial index on (bookingId WHERE mode='balance') means
+  // concurrent duplicate requests are silently ignored rather than creating two records.
   const [inserted] = await db
     .insert(paymentsTable)
     .values({
       bookingId: source.bookingId,
-      rzpOrderId: `cash_balance_${nanoid(10)}`,   // placeholder — not an online payment
+      rzpOrderId: `cash_balance_${nanoid(10)}`,
       amount: String(remaining.toFixed(2)),
       currency: "INR",
       mode: "balance",
       status: "cash_pending",
       paymentMethod: "cash",
     })
+    .onConflictDoNothing()
     .returning({ id: paymentsTable.id });
 
+  // If insert was a no-op (conflict with existing balance record), fetch that record
+  const paymentId: string | undefined =
+    inserted?.id ??
+    (await db
+      .select({ id: paymentsTable.id })
+      .from(paymentsTable)
+      .where(and(eq(paymentsTable.bookingId, source.bookingId), eq(paymentsTable.mode, "balance")))
+      .limit(1)
+      .then(([r]) => r?.id));
+
+  if (!paymentId) {
+    set.status = 500;
+    return { success: false, message: "Failed to resolve balance payment" };
+  }
+
   logger.info(
-    { module: "payments", action: "create-balance", newPaymentId: inserted.id, amount: remaining },
-    "Balance payment record created",
+    { module: "payments", action: "create-balance", paymentId, amount: remaining, wasNew: !!inserted },
+    inserted ? "Balance payment record created" : "Balance payment already exists — returning existing",
   );
 
-  set.status = 201;
-  return { success: true, data: { paymentId: inserted.id } };
+  set.status = inserted ? 201 : 200;
+  return { success: true, data: { paymentId } };
 };

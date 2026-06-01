@@ -8,6 +8,8 @@ import { markCash, markCashSchema } from "./payment.mark-cash";
 import { createBalancePayment, createBalancePaymentSchema } from "./payment.create-balance";
 import { verifyCode, verifyCodeSchema } from "./payment.verify-code";
 import { adminVerify, adminVerifySchema } from "./payment.admin-verify";
+import { adminListPayments, adminListPaymentsSchema } from "./payment.admin-list";
+import { adminPaymentDetail, adminPaymentDetailSchema } from "./payment.admin-detail";
 import { resendCode, resendCodeSchema } from "./payment.resend-code";
 import { notifyDriver, notifyDriverSchema } from "./payment.notify-driver";
 
@@ -29,4 +31,6 @@ export const paymentsRouter = new Elysia({ prefix: "/payments" })
   .post("/:id/mark-cash",        markCash,         markCashSchema)
   .post("/:id/verify-code",      verifyCode,       verifyCodeSchema)
   .post("/:id/resend-code",      resendCode,       resendCodeSchema)
-  .patch("/:id/admin-verify",    adminVerify,      adminVerifySchema);
+  .patch("/:id/admin-verify",    adminVerify,      adminVerifySchema)
+  .get("/admin",                 adminListPayments,     adminListPaymentsSchema)
+  .get("/admin/:id",             adminPaymentDetail,    adminPaymentDetailSchema);

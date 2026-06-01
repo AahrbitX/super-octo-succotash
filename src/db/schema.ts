@@ -13,6 +13,7 @@ import {
   pgEnum,
   index,
   uniqueIndex,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import { user } from "./auth-schema";
@@ -125,33 +126,43 @@ export const bookings = pgTable(
 );
 
 // --- Table: payments ---
-export const payments = pgTable("payments", {
-  id: uuid("id")
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  bookingId: text("booking_id")
-    .notNull()
-    .references(() => bookings.id),
-  rzpOrderId: varchar("rzp_order_id", { length: 100 }).notNull(),
-  rzpPaymentId: varchar("rzp_payment_id", { length: 100 }).unique(),
-  amount: numeric("amount", { precision: 8, scale: 2 })
-    .notNull()
-    .default("500.00"),
-  currency: varchar("currency", { length: 3 }).notNull().default("INR"),
-  status: paymentStatusEnum("status").notNull().default("created"),
-  mode: varchar("mode", { length: 10 }).notNull().default("full"),
-  refundId: varchar("refund_id", { length: 100 }),
-  refundedBy: text("refunded_by").references(() => user.id),
-  paidAt: timestamp("paid_at", { withTimezone: true }),
-  paymentMethod: varchar("payment_method", { length: 10 }).notNull().default("online"),
-  cashCode: varchar("cash_code", { length: 10 }),
-  cashVerifiedAt: timestamp("cash_verified_at", { withTimezone: true }),
-  adminVerifiedBy: text("admin_verified_by").references(() => user.id),
-  adminVerifiedAt: timestamp("admin_verified_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const payments = pgTable(
+  "payments",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    bookingId: text("booking_id")
+      .notNull()
+      .references(() => bookings.id),
+    rzpOrderId: varchar("rzp_order_id", { length: 100 }).notNull(),
+    rzpPaymentId: varchar("rzp_payment_id", { length: 100 }).unique(),
+    amount: numeric("amount", { precision: 8, scale: 2 })
+      .notNull()
+      .default("500.00"),
+    currency: varchar("currency", { length: 3 }).notNull().default("INR"),
+    status: paymentStatusEnum("status").notNull().default("created"),
+    mode: varchar("mode", { length: 10 }).notNull().default("full"),
+    refundId: varchar("refund_id", { length: 100 }),
+    refundedBy: text("refunded_by").references(() => user.id),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    paymentMethod: varchar("payment_method", { length: 10 }).notNull().default("online"),
+    cashCode: varchar("cash_code", { length: 10 }),
+    cashVerifiedAt: timestamp("cash_verified_at", { withTimezone: true }),
+    adminVerifiedBy: text("admin_verified_by").references(() => user.id),
+    adminVerifiedAt: timestamp("admin_verified_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // Enforce at most one balance payment per booking at DB level.
+    // This makes the ON CONFLICT DO NOTHING upsert in create-balance safe under concurrency.
+    uniqueIndex("idx_payments_booking_balance")
+      .on(table.bookingId)
+      .where(sql`mode = 'balance'`),
+  ],
+);
 
 // --- Table: reviews ---
 export const reviews = pgTable("reviews", {
@@ -165,6 +176,12 @@ export const reviews = pgTable("reviews", {
   qrToken: uuid("qr_token").notNull(),
   rating: smallint("rating").notNull(),
   comment: text("comment"),
+  flagged: boolean("flagged").default(false).notNull(),
+  unread: boolean("unread").default(true).notNull(),
+  ratingPunctuality: smallint("rating_punctuality"),
+  ratingCleanliness: smallint("rating_cleanliness"),
+  ratingBehavior:    smallint("rating_behavior"),
+  ratingDriving:     smallint("rating_driving"),
   submittedAt: timestamp("submitted_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -265,6 +282,46 @@ export const supportTickets = pgTable(
     index("idx_support_tickets_user").on(table.userId, table.createdAt),
     index("idx_support_tickets_booking").on(table.bookingId),
   ],
+);
+
+// --- Table: fleet_vehicles ---
+export const fleetVehicles = pgTable(
+  "fleet_vehicles",
+  {
+    id: text("id").primaryKey(),
+    name: varchar("name", { length: 150 }).notNull(),
+    tagline: varchar("tagline", { length: 200 }),
+    category: varchar("category", { length: 50 }).notNull(), // Hatchback | Sedan | MUV | Luxury | Traveller
+    image: text("image"),
+    seats: smallint("seats").notNull().default(4),
+    bags: smallint("bags").notNull().default(2),
+    ac: boolean("ac").notNull().default(true),
+    fuel: varchar("fuel", { length: 50 }).notNull().default("Petrol"),
+    features: text("features").array().notNull().default(sql`'{}'::text[]`),
+    priceFrom: varchar("price_from", { length: 30 }),
+    active: boolean("active").notNull().default(true),
+    sortOrder: smallint("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_fleet_vehicles_active").on(table.active, table.sortOrder),
+    index("idx_fleet_vehicles_category").on(table.category),
+  ],
+);
+
+// --- Table: vehicle_pricing ---
+export const vehiclePricing = pgTable(
+  "vehicle_pricing",
+  {
+    id: text("id").primaryKey(),
+    vehicleType: varchar("vehicle_type", { length: 100 }).notNull().unique(),
+    defaultAmount: numeric("default_amount", { precision: 8, scale: 2 }).notNull().default("0"),
+    defaultUnit: varchar("default_unit", { length: 30 }).notNull().default("per km"),
+    serviceFares: jsonb("service_fares").$type<Record<string, { amount: number; unit: string }>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
 );
 
 // --- DRIZZLE RELATIONS ---

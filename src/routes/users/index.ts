@@ -7,6 +7,9 @@ import { createUser, createUserSchema } from "./users.create";
 import { userStats, userStatsSchema } from "./users.stats";
 import { usersHasPassword, usersHasPasswordSchema } from "./users.has-password";
 import { usersSetPassword, usersSetPasswordSchema } from "./users.set-password";
+import { suspendUser, suspendUserSchema } from "./users.suspend";
+import { updateUser, updateUserSchema } from "./users.update";
+import { deleteUser, deleteUserSchema } from "./users.delete";
 
 export const usersRouter = new Elysia({ prefix: "/users" })
   .derive(async ({ request, set }) => {
@@ -21,5 +24,8 @@ export const usersRouter = new Elysia({ prefix: "/users" })
   .get("/stats", userStats, userStatsSchema)
   .get("/me/has-password", usersHasPassword, usersHasPasswordSchema)
   .post("/me/password", usersSetPassword, usersSetPasswordSchema)
+  .patch("/:id", updateUser, updateUserSchema)
+  .patch("/:id/suspend", suspendUser, suspendUserSchema)
   .get("/:id", userDetails, userDetailsSchema)
+  .delete("/:id", deleteUser, deleteUserSchema)
   .post("/", createUser, createUserSchema);

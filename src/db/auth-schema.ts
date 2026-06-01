@@ -29,6 +29,8 @@ export const user = pgTable("user", {
   phoneNumberVerified: boolean("phone_number_verified"),
   role: roleEnum("role").notNull().default("user"),
   dob: date("dob", { mode: "string" }),
+  banned: boolean("banned").default(false).notNull(),
+  bannedReason: text("banned_reason"),
 });
 
 export const session = pgTable(

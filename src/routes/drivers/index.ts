@@ -7,6 +7,7 @@ import { updateDriver, updateDriverSchema } from "./drivers.update";
 import { searchDrivers, searchDriversSchema } from "./drivers.search";
 import { onboardDriver, onboardDriverSchema } from "./drivers.onboard";
 import { driverDetails, driverDetailsSchema } from "./drivers.details";
+import { deleteDriver, deleteDriverSchema } from "./drivers.delete";
 
 export const driversRouter = new Elysia({ prefix: "/drivers" })
   /**
@@ -48,4 +49,5 @@ export const driversRouter = new Elysia({ prefix: "/drivers" })
   .get("/:id", driverDetails, driverDetailsSchema)
   .post("/onboard", onboardDriver, onboardDriverSchema)
   .patch("/update/:id", updateDriver, updateDriverSchema)
+  .delete("/:id", deleteDriver, deleteDriverSchema)
   .get("/search", searchDrivers, searchDriversSchema);

@@ -2,9 +2,11 @@ import { db } from "@/db";
 import { logger } from "@/lib/logging";
 
 import { t } from "elysia";
+import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { generateDriverId } from "@/utils/id";
 import { drivers as driversTable } from "@/db/schema";
+import { user as userTable } from "@/db/auth-schema";
 import { nanoid } from "nanoid";
 
 function generateCollectionCode(): string {
@@ -69,11 +71,31 @@ export const onboardDriver = async ({
         {
           requestId,
           module: "drivers",
-          step: "create_auth_user",
+          step: "resolve_user",
         },
-        "Creating auth profile for driver",
+        "Resolving user for driver onboarding",
       );
 
+      // Reject if this phone already belongs to any existing account
+      const [existingUser] = await tx
+        .select({ id: userTable.id, role: userTable.role })
+        .from(userTable)
+        .where(eq(userTable.phoneNumber, body.phone))
+        .limit(1);
+
+      if (existingUser) {
+        set.status = 409;
+        return {
+          success: false,
+          message:
+            existingUser.role === "driver"
+              ? "A driver with this phone number already exists"
+              : "This phone number is already registered as a customer account",
+          driverId: null,
+        };
+      }
+
+      // Create a fresh account for the driver
       const newUser = await auth.api.signUpEmail({
         body: {
           name: body.name,
@@ -86,25 +108,14 @@ export const onboardDriver = async ({
       });
 
       if (!newUser) {
-        logger.error(
-          {
-            requestId,
-            module: "drivers",
-            step: "create_auth_user",
-          },
-          "Auth user creation failed",
-        );
-
         throw new Error("Failed to create auth user");
       }
 
+      const userId = newUser.user.id;
+
       logger.info(
-        {
-          requestId,
-          module: "drivers",
-          userId: newUser.user.id,
-        },
-        "Auth user created successfully",
+        { requestId, module: "drivers", userId },
+        "New auth user created for driver",
       );
 
       logger.info(
@@ -120,7 +131,7 @@ export const onboardDriver = async ({
         .insert(driversTable)
         .values({
           id: generateDriverId(),
-          userId: newUser.user.id,
+          userId,
           vehicleNumber: body.vehicleNumber,
           vehicleType: body.vehicleType,
           ac: body.ac,
@@ -131,11 +142,7 @@ export const onboardDriver = async ({
 
       if (!newDriver) {
         logger.error(
-          {
-            requestId,
-            module: "drivers",
-            userId: newUser.user.id,
-          },
+          { requestId, module: "drivers", userId },
           "Driver profile creation failed",
         );
 
@@ -143,12 +150,7 @@ export const onboardDriver = async ({
       }
 
       logger.info(
-        {
-          requestId,
-          module: "drivers",
-          driverId: newDriver.id,
-          userId: newUser.user.id,
-        },
+        { requestId, module: "drivers", driverId: newDriver.id, userId },
         "Driver onboarded successfully",
       );
 

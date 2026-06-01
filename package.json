@@ -9,7 +9,11 @@
     "build": "bun build --compile --target bun --outfile server src/index.ts",
     "drizzle:generate": "bunx drizzle-kit generate",
     "drizzle:migrate": "bunx drizzle-kit migrate",
-    "drizzle:push": "bunx drizzle-kit push"
+    "drizzle:push": "bunx drizzle-kit push",
+    "db:reset": "bun run scripts/reset-data.ts",
+    "seed:fleet": "bun run src/scripts/seed-fleet.ts",
+    "seed:pricing": "bun run src/scripts/seed-pricing.ts",
+    "seed": "bun run src/scripts/seed-fleet.ts && bun run src/scripts/seed-pricing.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",

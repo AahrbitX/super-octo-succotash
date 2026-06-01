@@ -178,7 +178,7 @@ const bookingDetails = async ({
     requestedAt: booking.createdAt,
     vehicleType: booking.vehicleType,
     ac: booking.ac,
-    journeyData: booking.journeyDate,
+    journeyDate: booking.journeyDate,
     journeyTime: booking.journeyTime,
     members: booking.members,
   };
@@ -249,13 +249,16 @@ const bookingDetails = async ({
 
       // Single-payment summary for backward-compat (used by admin detail page)
       payment: {
-        fare:           booking.totalFare,
-        amount:         latestPayment?.amount ?? null,
-        status:         latestPayment?.status ?? null,
-        method:         latestPayment?.paymentMethod ?? null,
-        mode:           latestPayment?.mode ?? null,
-        paidAt:         latestPayment?.paidAt ?? null,
-        id:             latestPayment?.id ?? null,
+        fare:            booking.totalFare,
+        amount:          latestPayment?.amount ?? null,
+        status:          latestPayment?.status ?? null,
+        method:          latestPayment?.paymentMethod ?? null,
+        mode:            latestPayment?.mode ?? null,
+        paidAt:          latestPayment?.paidAt ?? null,
+        cashVerifiedAt:  latestPayment?.cashVerifiedAt ?? null,
+        adminVerifiedBy: latestPayment?.adminVerifiedBy ?? null,
+        adminVerifiedAt: latestPayment?.adminVerifiedAt ?? null,
+        id:              latestPayment?.id ?? null,
       },
 
       // Full transaction history — all payment attempts for this booking
