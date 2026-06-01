@@ -1,4 +1,5 @@
 import { eq, desc, sum, count, and } from "drizzle-orm";
+import { t } from "elysia";
 import { db } from "@/db";
 import { logger } from "@/lib/logging";
 import {
@@ -8,6 +9,9 @@ import {
 import { user as userTable } from "@/db/auth-schema";
 
 export const adminListPaymentsSchema = {
+  query: t.Object({
+    userId: t.Optional(t.String()), // filter payments for a specific user
+  }),
   detail: {
     tags: ["Payments"],
     operationId: "adminListPayments",
@@ -17,9 +21,11 @@ export const adminListPaymentsSchema = {
 
 export const adminListPayments = async ({
   user,
+  query,
   set,
 }: {
   user: any;
+  query: { userId?: string };
   set: any;
 }) => {
   if (user.role !== "admin") {
@@ -27,39 +33,41 @@ export const adminListPayments = async ({
     return { success: false, message: "Admin access required", data: null };
   }
 
-  logger.info({ module: "payments", action: "admin-list", adminId: user.id }, "Admin fetching all payments");
+  logger.info({ module: "payments", action: "admin-list", adminId: user.id, filterUserId: query.userId }, "Admin fetching all payments");
+
+  const whereClause = query.userId
+    ? and(eq(userTable.id, query.userId))
+    : undefined;
 
   const rows = await db
     .select({
-      id: paymentsTable.id,
-      bookingId: paymentsTable.bookingId,
-      amount: paymentsTable.amount,
-      currency: paymentsTable.currency,
-      status: paymentsTable.status,
-      mode: paymentsTable.mode,
-      paymentMethod: paymentsTable.paymentMethod,
-      paidAt: paymentsTable.paidAt,
-      cashVerifiedAt: paymentsTable.cashVerifiedAt,
+      id:              paymentsTable.id,
+      bookingId:       paymentsTable.bookingId,
+      amount:          paymentsTable.amount,
+      currency:        paymentsTable.currency,
+      status:          paymentsTable.status,
+      mode:            paymentsTable.mode,
+      paymentMethod:   paymentsTable.paymentMethod,
+      paidAt:          paymentsTable.paidAt,
+      cashVerifiedAt:  paymentsTable.cashVerifiedAt,
       adminVerifiedAt: paymentsTable.adminVerifiedAt,
-      createdAt: paymentsTable.createdAt,
-      bookingRef: bookingsTable.bookingRef,
-      journeyDate: bookingsTable.journeyDate,
-      totalFare: bookingsTable.totalFare,
-      bookingStatus: bookingsTable.status,
-      userName: userTable.name,
-      userPhone: userTable.phoneNumber,
+      createdAt:       paymentsTable.createdAt,
+      bookingRef:      bookingsTable.bookingRef,
+      journeyDate:     bookingsTable.journeyDate,
+      totalFare:       bookingsTable.totalFare,
+      bookingStatus:   bookingsTable.status,
+      userName:        userTable.name,
+      userPhone:       userTable.phoneNumber,
     })
     .from(paymentsTable)
     .innerJoin(bookingsTable, eq(paymentsTable.bookingId, bookingsTable.id))
     .innerJoin(userTable, eq(bookingsTable.userId, userTable.id))
+    .where(whereClause)
     .orderBy(desc(paymentsTable.createdAt));
 
-  // Summary stats
+  // Summary stats (always global — unaffected by userId filter)
   const [stats] = await db
-    .select({
-      totalRevenue: sum(paymentsTable.amount),
-      totalCount: count(paymentsTable.id),
-    })
+    .select({ totalRevenue: sum(paymentsTable.amount), totalCount: count(paymentsTable.id) })
     .from(paymentsTable)
     .where(eq(paymentsTable.status, "paid"));
 
@@ -77,10 +85,10 @@ export const adminListPayments = async ({
   return {
     success: true,
     summary: {
-      totalRevenue: stats?.totalRevenue ?? "0",
-      totalTransactions: stats?.totalCount ?? 0,
-      cashPayments: cashStats?.cashCount ?? 0,
-      pendingPayments: pendingStats?.pendingCount ?? 0,
+      totalRevenue:      stats?.totalRevenue      ?? "0",
+      totalTransactions: stats?.totalCount        ?? 0,
+      cashPayments:      cashStats?.cashCount     ?? 0,
+      pendingPayments:   pendingStats?.pendingCount ?? 0,
     },
     data: rows,
   };

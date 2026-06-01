@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { logger } from "@/lib/logging";
 import { alias } from "drizzle-orm/pg-core";
 
-import { eq } from "drizzle-orm";
+import { eq, avg, count, sql } from "drizzle-orm";
 import { desc } from "drizzle-orm";
 import {
   places as placesTable,
@@ -152,7 +152,7 @@ const bookingDetails = async ({
           name: booking.customerName,
           phone: booking.customerPhone,
           bookedAt: booking.createdAt,
-          bookedFor: "",
+          bookedFor: booking.journeyDate,
           bookedBy: "Staff Booking",
           memberSince: null,
         }
@@ -160,10 +160,30 @@ const bookingDetails = async ({
           name: booking.riderUserName,
           phone: booking.riderPhone,
           bookedAt: booking.createdAt,
-          bookedFor: "",
+          bookedFor: booking.journeyDate,
           bookedBy: "Self Booking",
           memberSince: booking.riderJoinedAt,
         };
+
+  // Fetch driver stats if a driver is assigned
+  let driverTotalTrips: number | null = null;
+  let driverRating: string | null = null;
+
+  if (booking.driverId) {
+    const [driverStats] = await db
+      .select({
+        totalTrips: sql<number>`COUNT(*) FILTER (WHERE ${bookingsTable.status} = 'completed')::int`,
+        avgRating:  avg(reviewsTable.rating),
+      })
+      .from(bookingsTable)
+      .leftJoin(reviewsTable, eq(reviewsTable.bookingId, bookingsTable.id))
+      .where(eq(bookingsTable.driverId, booking.driverId));
+
+    driverTotalTrips = driverStats?.totalTrips ?? 0;
+    driverRating = driverStats?.avgRating
+      ? parseFloat(driverStats.avgRating).toFixed(1)
+      : null;
+  }
 
   const driver = {
     id: booking.driverId,
@@ -172,6 +192,8 @@ const bookingDetails = async ({
     ac: booking.driverAc,
     vehicleType: booking.driverVehicleType,
     vehicleNumber: booking.vehicleNumber,
+    totalTrips: driverTotalTrips,
+    rating: driverRating,
   };
 
   const info = {

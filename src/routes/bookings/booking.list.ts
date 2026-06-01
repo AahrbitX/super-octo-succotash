@@ -16,8 +16,9 @@ import {
 
 export const bookingListSchema = {
   query: t.Object({
-    page: t.Optional(t.String()),
+    page:     t.Optional(t.String()),
     pageSize: t.Optional(t.String()),
+    userId:   t.Optional(t.String()), // admin: filter bookings for a specific user
   }),
   detail: {
     tags: ["Bookings"],
@@ -66,7 +67,7 @@ const bookingList = async ({
   const dropPlaces = alias(placesTable, "drop_places");
 
   const whereCondition = isAdmin
-    ? undefined
+    ? query.userId ? eq(bookingsTable.userId, query.userId) : undefined
     : eq(bookingsTable.userId, user.id);
 
   const dataQuery = db
