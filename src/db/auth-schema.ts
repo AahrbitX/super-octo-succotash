@@ -33,6 +33,7 @@ export const user = pgTable("user", {
   bannedReason: text("banned_reason"),
   marketingConsent: boolean("marketing_consent"),
   marketingConsentAt: timestamp("marketing_consent_at"),
+  gender: text("gender"),
 });
 
 export const session = pgTable(

@@ -220,18 +220,8 @@ const createBooking = async ({
       "Booking created successfully",
     );
 
-    await sendBookingConfirmation({
-      customerPhone,
-      customerName,
-      bookingRef:  booking.bookingRef,
-      pickupName:  pickup.name,
-      dropName:    drop.name,
-      journeyDate,
-      journeyTime,
-      totalFare,
-    }).catch((err) =>
-      logger.warn({ requestId, module: "whatsapp", action: "bookingConfirmation", bookingId: booking.id, err }, "WhatsApp send failed")
-    );
+    // Booking confirmation to customer disabled
+    // await sendBookingConfirmation({ ... })
 
     set.status = 201;
 

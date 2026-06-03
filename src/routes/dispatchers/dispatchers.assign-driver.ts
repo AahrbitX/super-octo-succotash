@@ -124,7 +124,7 @@ export const dispatcherAssignDriver = async ({
       pickupName:      bookingDetail.pickupName ?? "",
       dropName:        bookingDetail.dropName   ?? "",
       totalFare:       String(bookingDetail.totalFare),
-      rideUrl:         driverUrl,
+      qrToken:         result.qrToken,
     }).catch((err) =>
       logger.warn({ module: "whatsapp", action: "sendBookingAssigned", bookingId: params.bookingId, err }, "WhatsApp send failed")
     );

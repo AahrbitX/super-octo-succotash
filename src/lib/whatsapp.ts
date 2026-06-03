@@ -12,10 +12,8 @@ interface SendTemplateOptions {
 }
 
 export interface CashCodePayload {
-  to: string;          // customer phone
+  to: string;   // customer phone
   code: string;
-  amount: string;
-  bookingRef: string;
 }
 
 
@@ -39,7 +37,7 @@ export interface BookingAssignedPayload {
   pickupName: string;
   dropName: string;
   totalFare: string;
-  rideUrl: string;
+  qrToken: string;   // just the UUID token, not the full URL
 }
 
 export interface BookingCancelledDriverPayload {
@@ -165,8 +163,8 @@ async function sendTemplate(opts: SendTemplateOptions): Promise<void> {
 export async function sendCashCode(payload: CashCodePayload): Promise<void> {
   await sendTemplate({
     to:           normalizePhone(payload.to),
-    templateName: "customer_cash_code",
-    bodyParams:   [payload.code, payload.amount, payload.bookingRef],
+    templateName: "payment_otp",
+    bodyParams:   [payload.code],
   });
 }
 
@@ -213,7 +211,7 @@ export async function sendBookingAssigned(
       payload.journeyDateTime,
       payload.totalFare,
     ],
-    buttonParam: payload.rideUrl,
+    buttonParam: payload.qrToken,
   });
 }
 
@@ -258,6 +256,11 @@ export async function sendAdminAlert(
 /**
  * Send an admin alert to all admin phone numbers (fires in parallel).
  */
+export function getAdminPhones(): string[] {
+  const raw = process.env.WHATSAPP_ADMIN_PHONE ?? "";
+  return raw.split(",").map((p) => p.trim()).filter(Boolean);
+}
+
 export async function sendAdminAlertToAll(
   adminPhones: string[],
   payload: AdminAlertPayload

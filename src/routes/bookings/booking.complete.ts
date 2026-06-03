@@ -1,9 +1,8 @@
 import { db } from "@/db";
 import { eq } from "drizzle-orm";
 import { bookings as bookingsTable, drivers as driversTable } from "@/db/schema";
-import { user as usersTable } from "@/db/auth-schema";
 import { logger } from "@/lib/logging";
-import { sendAdminAlertToAll } from "@/lib/whatsapp";
+import { sendAdminAlertToAll, getAdminPhones } from "@/lib/whatsapp";
 
 export const completeBooking = async ({
   user,
@@ -67,12 +66,7 @@ export const completeBooking = async ({
         .limit(1)
     : [null];
 
-  const admins = await db
-    .select({ phone: usersTable.phoneNumber })
-    .from(usersTable)
-    .where(eq(usersTable.role, "admin"));
-
-  const adminPhones = admins.map((a) => a.phone).filter((p): p is string => Boolean(p));
+  const adminPhones = getAdminPhones();
 
   await sendAdminAlertToAll(adminPhones, {
     eventType: "Ride Completed",

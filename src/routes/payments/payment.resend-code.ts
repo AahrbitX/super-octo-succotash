@@ -63,10 +63,8 @@ export const resendCode = async ({
   }
 
   await sendCashCode({
-    to:         payment.customerPhone,
-    code:       payment.cashCode,
-    amount:     payment.amount ?? "0",
-    bookingRef: payment.bookingRef,
+    to:   payment.customerPhone,
+    code: payment.cashCode,
   }).catch((err: unknown) =>
     logger.warn({ module: "whatsapp", action: "resendPaymentOtp", paymentId: id, err }, "WhatsApp send failed")
   );

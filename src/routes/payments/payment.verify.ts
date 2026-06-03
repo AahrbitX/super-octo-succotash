@@ -3,9 +3,8 @@ import { t } from "elysia";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { logger } from "@/lib/logging";
-import { sendAdminAlertToAll } from "@/lib/whatsapp";
+import { sendAdminAlertToAll, getAdminPhones } from "@/lib/whatsapp";
 import { bookings as bookingsTable, payments as paymentsTable, places as placesTable } from "@/db/schema";
-import { user as usersTable } from "@/db/auth-schema";
 import { alias } from "drizzle-orm/pg-core";
 
 export const verifyPaymentSchema = {
@@ -97,12 +96,7 @@ export const verifyPayment = async ({
     .limit(1);
 
   if (booking) {
-    const admins = await db
-      .select({ phone: usersTable.phoneNumber })
-      .from(usersTable)
-      .where(eq(usersTable.role, "admin"));
-
-    const adminPhones = admins.map((a) => a.phone).filter((p): p is string => Boolean(p));
+    const adminPhones = getAdminPhones();
 
     await sendAdminAlertToAll(adminPhones, {
       eventType: "New Booking Confirmed",

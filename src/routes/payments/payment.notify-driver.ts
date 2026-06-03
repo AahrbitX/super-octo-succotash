@@ -67,10 +67,8 @@ export const notifyDriver = async ({
     .where(eq(paymentsTable.id, id));
 
   await sendCashCode({
-    to:         row.customerPhone,
-    code:       otp,
-    amount:     row.amount ?? "0",
-    bookingRef: row.bookingRef,
+    to:   row.customerPhone,
+    code: otp,
   }).catch((err: unknown) =>
     logger.warn({ module: "whatsapp", action: "sendPaymentOtp", paymentId: id, err }, "WhatsApp send failed")
   );
