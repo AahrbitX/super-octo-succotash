@@ -1,5 +1,5 @@
 import { t } from "elysia";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { logger } from "@/lib/logging";
 import { bookings as bookingsTable, payments as paymentsTable } from "@/db/schema";
@@ -30,18 +30,15 @@ export const verifyCode = async ({
 
   logger.info(
     { module: "payments", action: "verify-code", paymentId: id, userId: user.id },
-    "Verifying cash code",
+    "Verifying payment OTP",
   );
 
   const [payment] = await db
     .select({
-      id: paymentsTable.id,
-      bookingId: paymentsTable.bookingId,
-      status: paymentsTable.status,
-      cashCode: paymentsTable.cashCode,
+      id:            paymentsTable.id,
+      status:        paymentsTable.status,
+      cashCode:      paymentsTable.cashCode,
       bookingUserId: bookingsTable.userId,
-      bookingStatus: bookingsTable.status,
-      totalFare: bookingsTable.totalFare,
     })
     .from(paymentsTable)
     .innerJoin(bookingsTable, eq(paymentsTable.bookingId, bookingsTable.id))
@@ -65,16 +62,16 @@ export const verifyCode = async ({
 
   if (!payment.cashCode) {
     set.status = 400;
-    return { success: false, message: "No code generated yet. Please tap 'Pay to Driver' first." };
+    return { success: false, message: "No OTP generated yet. Please tap 'Pay to Driver' first." };
   }
 
   if (code.trim().toUpperCase() !== payment.cashCode.toUpperCase()) {
     logger.warn(
       { module: "payments", action: "verify-code", paymentId: id },
-      "Invalid cash code entered",
+      "Invalid payment OTP entered",
     );
     set.status = 400;
-    return { success: false, message: "Invalid code. Please ask your driver for the correct code." };
+    return { success: false, message: "Invalid OTP. Please check your WhatsApp for the correct OTP." };
   }
 
   await db
@@ -86,29 +83,6 @@ export const verifyCode = async ({
     { module: "payments", action: "verify-code", paymentId: id },
     "Cash payment confirmed by per-ride code",
   );
-
-  // Auto-complete trip if fully paid and still ongoing
-  if (payment.bookingStatus === "ongoing") {
-    const paidRows = await db
-      .select({ totalPaid: sql<string>`COALESCE(SUM(${paymentsTable.amount}), '0')` })
-      .from(paymentsTable)
-      .where(
-        and(
-          eq(paymentsTable.bookingId, payment.bookingId),
-          inArray(paymentsTable.status, ["paid", "cash_collected"]),
-        ),
-      );
-
-    const fullyPaid = parseFloat(paidRows[0]?.totalPaid ?? "0") >= parseFloat(payment.totalFare) - 0.01;
-
-    if (fullyPaid) {
-      await db
-        .update(bookingsTable)
-        .set({ status: "completed", rideEndedAt: new Date(), updatedAt: new Date() })
-        .where(eq(bookingsTable.id, payment.bookingId));
-      logger.info({ module: "payments", action: "verify-code", paymentId: id }, "Trip auto-completed after full cash collection");
-    }
-  }
 
   set.status = 200;
   return { success: true };

@@ -31,6 +31,8 @@ export const user = pgTable("user", {
   dob: date("dob", { mode: "string" }),
   banned: boolean("banned").default(false).notNull(),
   bannedReason: text("banned_reason"),
+  marketingConsent: boolean("marketing_consent"),
+  marketingConsentAt: timestamp("marketing_consent_at"),
 });
 
 export const session = pgTable(

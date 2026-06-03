@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { bookings as bookingsTable, drivers as driversTable, payments as paymentsTable } from "@/db/schema";
 import { user as usersTable } from "@/db/auth-schema";
 import { logger } from "@/lib/logging";
+import { sendBookingCancelledToDriver } from "@/lib/whatsapp";
 
 export const cancelBooking = async ({
   user,
@@ -73,13 +74,17 @@ export const cancelBooking = async ({
       .where(eq(driversTable.id, booking[0].driverId))
       .limit(1);
 
-    if (driverRow) {
-      console.log(`[WhatsApp stub] Notify driver of cancellation.`);
-      console.log(`  Driver : ${driverRow.name} (${driverRow.phone})`);
-      console.log(`  Booking: ${booking[0].bookingRef}`);
-      console.log(`  Rider  : ${booking[0].customerName}`);
-      console.log(`  Journey: ${booking[0].journeyDate} at ${booking[0].journeyTime}`);
-      console.log(`  Message: "Your ride for ${booking[0].customerName} on ${booking[0].journeyDate} at ${booking[0].journeyTime} has been cancelled."`);
+    if (driverRow?.phone) {
+      await sendBookingCancelledToDriver({
+        driverPhone:  driverRow.phone,
+        driverName:   driverRow.name         ?? "Driver",
+        bookingRef:   booking[0].bookingRef,
+        customerName: booking[0].customerName,
+        journeyDate:  booking[0].journeyDate,
+        journeyTime:  booking[0].journeyTime,
+      }).catch((err) =>
+        logger.warn({ module: "whatsapp", action: "sendCancellation", bookingId: params.id, err }, "WhatsApp send failed")
+      );
     }
   }
 

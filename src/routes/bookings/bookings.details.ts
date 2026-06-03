@@ -87,6 +87,8 @@ const bookingDetails = async ({
       riderPhone: usersTable.phoneNumber,
       riderJoinedAt: usersTable.createdAt,
 
+      qrToken: bookingsTable.qrToken,
+
       driverId: driversTable.id,
       driverName: driverUserTable.name,
       driverPhone: driverUserTable.phoneNumber,
@@ -255,6 +257,7 @@ const bookingDetails = async ({
       id: booking.id,
       bookingRef: booking.bookingRef,
       source: booking.source,
+      qrToken: booking.qrToken,
 
       rider,
       driver,

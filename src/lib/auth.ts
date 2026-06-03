@@ -7,6 +7,8 @@ import { betterAuth } from "better-auth";
 import { phoneNumber } from "better-auth/plugins";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 
+import { sendLoginOtp } from "./whatsapp";
+
 /* 
 File: auth.ts
 
@@ -35,18 +37,28 @@ export const auth = betterAuth({
   plugins: [
     phoneNumber({
       sendOTP: async ({ phoneNumber, code }) => {
+        const WHATSAPP_ENABLED = process.env.WHATSAPP_ENABLED === "true";
         const SMS_PROVIDER_KEY = process.env.FAST2SMS_API_KEY;
-        if (!SMS_PROVIDER_KEY || process.env.NODE_ENV !== "production") {
-          // Dev mode: print OTP to console instead of sending SMS
-          console.log(`[DEV OTP] ${phoneNumber} → ${code}`);
+
+        if (WHATSAPP_ENABLED) {
+          // Primary: WhatsApp OTP (login_otp Authentication template)
+          await sendLoginOtp({ phone: phoneNumber, code });
           return;
         }
-        const url = `https://www.fast2sms.com/dev/bulkV2?authorization=${SMS_PROVIDER_KEY}&variables_values=${code}&route=otp&numbers=${phoneNumber}`;
-        const response = await fetch(url);
-        const result: any = await response.json();
-        if (!result.return) {
-          throw new Error(`Fast2SMS Error: ${result.message}`);
+
+        if (SMS_PROVIDER_KEY) {
+          // Fallback: Fast2SMS
+          const url = `https://www.fast2sms.com/dev/bulkV2?authorization=${SMS_PROVIDER_KEY}&variables_values=${code}&route=otp&numbers=${phoneNumber}`;
+          const response = await fetch(url);
+          const result: any = await response.json();
+          if (!result.return) {
+            throw new Error(`Fast2SMS Error: ${result.message}`);
+          }
+          return;
         }
+
+        // Dev mode: print OTP to console
+        console.log(`[DEV OTP] ${phoneNumber} → ${code}`);
       },
       signUpOnVerification: {
         getTempEmail: (phoneNumber) => `${phoneNumber}@mohan-cabs.com`,

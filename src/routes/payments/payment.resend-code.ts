@@ -2,13 +2,8 @@ import { t } from "elysia";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { logger } from "@/lib/logging";
-import {
-  bookings as bookingsTable,
-  payments as paymentsTable,
-  drivers as driversTable,
-} from "@/db/schema";
-import { user as usersTable } from "@/db/auth-schema";
-import { alias } from "drizzle-orm/pg-core";
+import { sendCashCode } from "@/lib/whatsapp";
+import { bookings as bookingsTable, payments as paymentsTable } from "@/db/schema";
 
 export const resendCodeSchema = {
   params: t.Object({ id: t.String() }),
@@ -32,23 +27,18 @@ export const resendCode = async ({
 
   logger.info({ module: "payments", action: "resend-code", paymentId: id, userId: user.id }, "Resending driver code");
 
-  const driverUserTable = alias(usersTable, "driver_user");
-
   const [payment] = await db
     .select({
-      id: paymentsTable.id,
-      status: paymentsTable.status,
-      cashCode: paymentsTable.cashCode,
-      bookingRef: bookingsTable.bookingRef,
-      amount: paymentsTable.amount,
-      userId: bookingsTable.userId,
-      driverName: driverUserTable.name,
-      driverPhone: driverUserTable.phoneNumber,
+      id:            paymentsTable.id,
+      status:        paymentsTable.status,
+      cashCode:      paymentsTable.cashCode,
+      bookingRef:    bookingsTable.bookingRef,
+      customerPhone: bookingsTable.customerPhone,
+      amount:        paymentsTable.amount,
+      userId:        bookingsTable.userId,
     })
     .from(paymentsTable)
     .innerJoin(bookingsTable, eq(paymentsTable.bookingId, bookingsTable.id))
-    .leftJoin(driversTable, eq(bookingsTable.driverId, driversTable.id))
-    .leftJoin(driverUserTable, eq(driversTable.userId, driverUserTable.id))
     .where(eq(paymentsTable.id, id))
     .limit(1);
 
@@ -69,21 +59,17 @@ export const resendCode = async ({
 
   if (!payment.cashCode) {
     set.status = 400;
-    return { success: false, message: "No code generated yet. Please tap 'Pay to Driver' first." };
+    return { success: false, message: "No OTP generated yet. Please tap 'Pay to Driver' first." };
   }
 
-  const msg =
-    `A passenger wants to pay ₹${payment.amount} in cash for booking ${payment.bookingRef}. ` +
-    `Their one-time payment code is *${payment.cashCode}*. ` +
-    `Tell this code to the passenger to confirm the payment.`;
-
-  console.log("\n📱 [WHATSAPP STUB] Cash Payment Code — Resending existing code for this ride");
-  console.log("  → Driver :", payment.driverName ?? "Unknown");
-  console.log("  → Phone  :", payment.driverPhone ?? "N/A");
-  console.log("  → Code   :", payment.cashCode);
-  console.log("  → Booking:", payment.bookingRef);
-  console.log("  → Message:", msg);
-  console.log("");
+  await sendCashCode({
+    to:         payment.customerPhone,
+    code:       payment.cashCode,
+    amount:     payment.amount ?? "0",
+    bookingRef: payment.bookingRef,
+  }).catch((err: unknown) =>
+    logger.warn({ module: "whatsapp", action: "resendPaymentOtp", paymentId: id, err }, "WhatsApp send failed")
+  );
 
   logger.info({ module: "payments", action: "resend-code", paymentId: id }, "Driver code resent");
 

@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { bookings as bookingsTable, drivers as driversTable } from "@/db/schema";
 import { user as usersTable } from "@/db/auth-schema";
 import { logger } from "@/lib/logging";
+import { sendAdminAlertToAll } from "@/lib/whatsapp";
 
 export const completeBooking = async ({
   user,
@@ -67,20 +68,19 @@ export const completeBooking = async ({
     : [null];
 
   const admins = await db
-    .select({ name: usersTable.name, phone: usersTable.phoneNumber })
+    .select({ phone: usersTable.phoneNumber })
     .from(usersTable)
     .where(eq(usersTable.role, "admin"));
 
-  for (const admin of admins) {
-    console.log(`[WhatsApp stub] Notify admin of completed ride.`);
-    console.log(`  Admin   : ${admin.name} (${admin.phone})`);
-    console.log(`  Booking : ${b.bookingRef}`);
-    console.log(`  Rider   : ${b.customerName}`);
-    console.log(`  Driver  : ${driverRow?.name ?? "Unassigned"} (${driverRow?.phone ?? "—"})`);
-    console.log(`  Journey : ${b.journeyDate} at ${b.journeyTime}`);
-    console.log(`  Fare    : ₹${b.totalFare}`);
-    console.log(`  Message : "Ride ${b.bookingRef} for ${b.customerName} has been completed. Driver: ${driverRow?.name ?? "—"}. Fare: ₹${b.totalFare}."`);
-  }
+  const adminPhones = admins.map((a) => a.phone).filter((p): p is string => Boolean(p));
+
+  await sendAdminAlertToAll(adminPhones, {
+    eventType: "Ride Completed",
+    bookingRef: b.bookingRef,
+    details: `${b.customerName} | Driver: ${driverRow?.name ?? "—"} | ₹${b.totalFare}`,
+  }).catch((err) =>
+    logger.warn({ module: "whatsapp", action: "adminAlertComplete", bookingId: params.id, err }, "WhatsApp send failed")
+  );
 
   return { success: true, message: "Booking marked as completed" };
 };

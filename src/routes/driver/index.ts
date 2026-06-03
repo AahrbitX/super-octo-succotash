@@ -1,9 +1,11 @@
 import Elysia from "elysia";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { bookings as bookingsTable, places as placesTable } from "@/db/schema";
+import { bookings as bookingsTable, payments as paymentsTable, places as placesTable } from "@/db/schema";
 import { logger } from "@/lib/logging";
+import { driverVerifyPayment, driverVerifyPaymentSchema } from "./driver.verify-payment";
+import { driverEndRide, driverEndRideSchema } from "./driver.end-ride";
 
 const pickupPlace = alias(placesTable, "pickup_place");
 const dropPlace = alias(placesTable, "drop_place");
@@ -40,6 +42,30 @@ export const driverRouter = new Elysia({ prefix: "/driver" })
     }
 
     const b = rows[0];
+
+    // Fetch ALL payment records for this booking to calculate real balance
+    const allPayments = await db
+      .select({
+        paymentId:     paymentsTable.id,
+        paymentStatus: paymentsTable.status,
+        paymentAmount: paymentsTable.amount,
+        paymentMethod: paymentsTable.paymentMethod,
+      })
+      .from(paymentsTable)
+      .where(eq(paymentsTable.bookingId, b.id))
+      .orderBy(desc(paymentsTable.createdAt));
+
+    // Sum all completed payments (paid online or cash collected)
+    const totalPaid = allPayments
+      .filter(p => p.paymentStatus === "paid" || p.paymentStatus === "cash_collected")
+      .reduce((sum, p) => sum + parseFloat(p.paymentAmount ?? "0"), 0);
+
+    const totalFare = parseFloat(b.totalFare ?? "0");
+    const balanceDue = Math.max(0, totalFare - totalPaid);
+
+    // Active cash payment waiting for OTP (most important for driver)
+    const cashPending = allPayments.find(p => p.paymentStatus === "cash_pending");
+
     return {
       success: true,
       data: {
@@ -56,6 +82,14 @@ export const driverRouter = new Elysia({ prefix: "/driver" })
         members: b.members,
         pickupName: b.pickupName ?? "—",
         dropName: b.dropName ?? "—",
+        // Calculated from all DB payment records
+        totalPaid:    totalPaid.toFixed(2),
+        balanceDue:   balanceDue.toFixed(2),
+        // Active cash payment (driver needs to enter OTP for this)
+        paymentId:     cashPending?.paymentId     ?? null,
+        paymentStatus: cashPending ? "cash_pending" : null,
+        paymentAmount: cashPending?.paymentAmount ?? null,
+        paymentMethod: cashPending?.paymentMethod ?? null,
       },
     };
   })
@@ -95,4 +129,15 @@ export const driverRouter = new Elysia({ prefix: "/driver" })
     );
 
     return { success: true, message: "Ride started" };
-  });
+  })
+
+  /** POST /api/driver/:token/verify-payment — driver enters customer's OTP to confirm cash */
+  .post("/:token/verify-payment", ({ params, body, set }) =>
+    driverVerifyPayment({ params, body, set }),
+    { body: driverVerifyPaymentSchema.body }
+  )
+
+  /** PATCH /api/driver/:token/end — driver ends the ride */
+  .patch("/:token/end", ({ params, set }) =>
+    driverEndRide({ params, set }),
+  );

@@ -42,6 +42,8 @@ export const dispatcherTripDetails = async ({
       seats: bookingsTable.members,
       fare: bookingsTable.totalFare,
       status: bookingsTable.status,
+      qrToken: bookingsTable.qrToken,
+      driverId: bookingsTable.driverId,
 
       pickupName: pickupTable.name,
       pickupZone: pickupTable.zone,

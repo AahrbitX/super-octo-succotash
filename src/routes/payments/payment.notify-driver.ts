@@ -2,14 +2,8 @@ import { t } from "elysia";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { logger } from "@/lib/logging";
-import {
-  bookings as bookingsTable,
-  payments as paymentsTable,
-  drivers as driversTable,
-} from "@/db/schema";
-import { user as usersTable } from "@/db/auth-schema";
-import { alias } from "drizzle-orm/pg-core";
-import { nanoid } from "nanoid";
+import { bookings as bookingsTable, payments as paymentsTable } from "@/db/schema";
+import { sendCashCode } from "@/lib/whatsapp";
 
 export const notifyDriverSchema = {
   params: t.Object({ id: t.String() }),
@@ -37,21 +31,16 @@ export const notifyDriver = async ({
     "Notifying driver of cash payment",
   );
 
-  const driverUserTable = alias(usersTable, "driver_user");
-
   const [row] = await db
     .select({
-      paymentUserId: bookingsTable.userId,
-      bookingRef: bookingsTable.bookingRef,
-      amount: paymentsTable.amount,
-      driverId: bookingsTable.driverId,
-      driverName: driverUserTable.name,
-      driverPhone: driverUserTable.phoneNumber,
+      paymentUserId:  bookingsTable.userId,
+      bookingRef:     bookingsTable.bookingRef,
+      customerPhone:  bookingsTable.customerPhone,
+      amount:         paymentsTable.amount,
+      driverId:       bookingsTable.driverId,
     })
     .from(paymentsTable)
     .innerJoin(bookingsTable, eq(paymentsTable.bookingId, bookingsTable.id))
-    .leftJoin(driversTable, eq(bookingsTable.driverId, driversTable.id))
-    .leftJoin(driverUserTable, eq(driversTable.userId, driverUserTable.id))
     .where(eq(paymentsTable.id, id))
     .limit(1);
 
@@ -70,25 +59,21 @@ export const notifyDriver = async ({
     return { success: true, driverAssigned: false };
   }
 
-  // Generate a fresh 6-char code for this ride and persist it
-  const code = nanoid(6).toUpperCase();
+  // Generate a fresh 6-digit numeric OTP (same format as login OTP)
+  const otp = String(Math.floor(100000 + Math.random() * 900000));
   await db
     .update(paymentsTable)
-    .set({ cashCode: code })
+    .set({ cashCode: otp })
     .where(eq(paymentsTable.id, id));
 
-  const msg =
-    `A passenger wants to pay ₹${row.amount} in cash for booking ${row.bookingRef}. ` +
-    `Their one-time payment code is *${code}*. ` +
-    `Tell this code to the passenger to confirm the payment.`;
-
-  console.log("\n📱 [WHATSAPP STUB] Cash Payment Code — New code generated for this ride");
-  console.log("  → Driver :", row.driverName ?? "Unknown");
-  console.log("  → Phone  :", row.driverPhone ?? "N/A");
-  console.log("  → Code   :", code);
-  console.log("  → Booking:", row.bookingRef);
-  console.log("  → Message:", msg);
-  console.log("");
+  await sendCashCode({
+    to:         row.customerPhone,
+    code:       otp,
+    amount:     row.amount ?? "0",
+    bookingRef: row.bookingRef,
+  }).catch((err: unknown) =>
+    logger.warn({ module: "whatsapp", action: "sendPaymentOtp", paymentId: id, err }, "WhatsApp send failed")
+  );
 
   set.status = 200;
   return { success: true, driverAssigned: true };

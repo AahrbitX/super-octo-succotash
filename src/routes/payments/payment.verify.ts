@@ -1,8 +1,9 @@
 import { createHmac } from "crypto";
 import { t } from "elysia";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { logger } from "@/lib/logging";
+import { sendAdminAlertToAll } from "@/lib/whatsapp";
 import { bookings as bookingsTable, payments as paymentsTable, places as placesTable } from "@/db/schema";
 import { user as usersTable } from "@/db/auth-schema";
 import { alias } from "drizzle-orm/pg-core";
@@ -58,37 +59,17 @@ export const verifyPayment = async ({
   // 3. Update booking status — auto-complete if fully paid and already ongoing,
   //    otherwise confirm if still pending. Never downgrade from "ongoing" to "confirmed".
   const [currentBooking] = await db
-    .select({ status: bookingsTable.status, totalFare: bookingsTable.totalFare })
+    .select({ status: bookingsTable.status })
     .from(bookingsTable)
     .where(eq(bookingsTable.id, bookingId))
     .limit(1);
 
-  if (currentBooking) {
-    const paidRows = await db
-      .select({ totalPaid: sql<string>`COALESCE(SUM(${paymentsTable.amount}), '0')` })
-      .from(paymentsTable)
-      .where(
-        and(
-          eq(paymentsTable.bookingId, bookingId),
-          inArray(paymentsTable.status, ["paid", "cash_collected"]),
-        ),
-      );
-
-    const fullyPaid = parseFloat(paidRows[0]?.totalPaid ?? "0") >= parseFloat(currentBooking.totalFare) - 0.01;
-
-    if (currentBooking.status === "ongoing" && fullyPaid) {
-      await db
-        .update(bookingsTable)
-        .set({ status: "completed", rideEndedAt: new Date(), updatedAt: new Date() })
-        .where(eq(bookingsTable.id, bookingId));
-      logger.info({ module: "payments", action: "verify", bookingId }, "Payment verified, trip auto-completed");
-    } else if (currentBooking.status !== "ongoing" && currentBooking.status !== "completed") {
-      await db
-        .update(bookingsTable)
-        .set({ status: "confirmed" })
-        .where(eq(bookingsTable.id, bookingId));
-      logger.info({ module: "payments", action: "verify", bookingId }, "Payment verified, booking confirmed");
-    }
+  if (currentBooking && currentBooking.status !== "ongoing" && currentBooking.status !== "completed") {
+    await db
+      .update(bookingsTable)
+      .set({ status: "confirmed" })
+      .where(eq(bookingsTable.id, bookingId));
+    logger.info({ module: "payments", action: "verify", bookingId }, "Payment verified, booking confirmed");
   }
 
   // 4. Notify all admins — replace console.log with WhatsApp when ready
@@ -117,21 +98,19 @@ export const verifyPayment = async ({
 
   if (booking) {
     const admins = await db
-      .select({ name: usersTable.name, phone: usersTable.phoneNumber })
+      .select({ phone: usersTable.phoneNumber })
       .from(usersTable)
       .where(eq(usersTable.role, "admin"));
 
-    for (const admin of admins) {
-      console.log(`[WhatsApp stub] New booking confirmed via payment.`);
-      console.log(`  Admin   : ${admin.name} (${admin.phone})`);
-      console.log(`  Booking : ${booking.bookingRef}`);
-      console.log(`  Rider   : ${booking.customerName} (${booking.customerPhone})`);
-      console.log(`  Journey : ${booking.journeyDate} at ${booking.journeyTime}`);
-      console.log(`  Route   : ${booking.pickupName} → ${booking.dropName}`);
-      console.log(`  Vehicle : ${booking.vehicleType}${booking.ac ? " AC" : ""} · ${booking.members} pax`);
-      console.log(`  Fare    : ₹${booking.totalFare}`);
-      console.log(`  Message : "New ride booked! ${booking.bookingRef} — ${booking.customerName} on ${booking.journeyDate} at ${booking.journeyTime}. ${booking.pickupName} → ${booking.dropName}. Fare: ₹${booking.totalFare}."`);
-    }
+    const adminPhones = admins.map((a) => a.phone).filter((p): p is string => Boolean(p));
+
+    await sendAdminAlertToAll(adminPhones, {
+      eventType: "New Booking Confirmed",
+      bookingRef: booking.bookingRef,
+      details: `${booking.customerName} | ${booking.journeyDate} ${booking.journeyTime} | ${booking.pickupName} → ${booking.dropName} | ₹${booking.totalFare}`,
+    }).catch((err) =>
+      logger.warn({ module: "whatsapp", action: "adminAlertPayment", bookingId, err }, "WhatsApp send failed")
+    );
   }
 
   return { success: true, message: "Payment verified and booking confirmed" };

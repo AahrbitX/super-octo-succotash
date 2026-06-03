@@ -115,7 +115,7 @@ export const reviewsRouter = new Elysia({ prefix: "/reviews" })
       }),
     },
   )
-  .get("/admin", async ({ user, query, set }: { user: any; query: { userId?: string }; set: any }) => {
+  .get("/admin", async ({ user, query, set }: { user: any; query: { userId?: string; driverId?: string }; set: any }) => {
     if ((user as any).role !== "admin") {
       set.status = 403;
       return { success: false, stats: null, data: [] };
@@ -156,7 +156,13 @@ export const reviewsRouter = new Elysia({ prefix: "/reviews" })
       .innerJoin(bookingsTable, eq(reviewsTable.bookingId, bookingsTable.id))
       .leftJoin(pickupPlace, eq(bookingsTable.pickupId, pickupPlace.id))
       .leftJoin(dropPlace,   eq(bookingsTable.dropId,   dropPlace.id))
-      .where(query.userId ? eq(bookingsTable.userId, query.userId) : undefined)
+      .where(
+        query.driverId
+          ? eq(bookingsTable.driverId, query.driverId)
+          : query.userId
+            ? eq(bookingsTable.userId, query.userId)
+            : undefined
+      )
       .orderBy(desc(reviewsTable.submittedAt));
 
     // Resolve driver names + vehicle numbers

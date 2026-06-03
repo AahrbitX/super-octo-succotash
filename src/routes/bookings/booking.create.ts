@@ -1,5 +1,6 @@
 import { db } from "@/db";
 import { logger } from "@/lib/logging";
+import { sendBookingConfirmation } from "@/lib/whatsapp";
 
 import { t } from "elysia";
 import { eq } from "drizzle-orm";
@@ -217,6 +218,19 @@ const createBooking = async ({
         dropId: drop.id,
       },
       "Booking created successfully",
+    );
+
+    await sendBookingConfirmation({
+      customerPhone,
+      customerName,
+      bookingRef:  booking.bookingRef,
+      pickupName:  pickup.name,
+      dropName:    drop.name,
+      journeyDate,
+      journeyTime,
+      totalFare,
+    }).catch((err) =>
+      logger.warn({ requestId, module: "whatsapp", action: "bookingConfirmation", bookingId: booking.id, err }, "WhatsApp send failed")
     );
 
     set.status = 201;

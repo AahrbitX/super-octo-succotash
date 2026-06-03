@@ -19,6 +19,7 @@ export const bookingListSchema = {
     page:     t.Optional(t.String()),
     pageSize: t.Optional(t.String()),
     userId:   t.Optional(t.String()), // admin: filter bookings for a specific user
+    driverId: t.Optional(t.String()), // admin: filter bookings for a specific driver
   }),
   detail: {
     tags: ["Bookings"],
@@ -67,7 +68,11 @@ const bookingList = async ({
   const dropPlaces = alias(placesTable, "drop_places");
 
   const whereCondition = isAdmin
-    ? query.userId ? eq(bookingsTable.userId, query.userId) : undefined
+    ? query.driverId
+      ? eq(bookingsTable.driverId, query.driverId)
+      : query.userId
+        ? eq(bookingsTable.userId, query.userId)
+        : undefined
     : eq(bookingsTable.userId, user.id);
 
   const dataQuery = db

@@ -6,6 +6,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { logger } from "@/lib/logging";
 import { user as usersTable } from "@/db/auth-schema";
+import { sendBookingAssigned } from "@/lib/whatsapp";
 
 import {
   bookings as bookingsTable,
@@ -114,17 +115,19 @@ export const dispatcherAssignDriver = async ({
     .where(eq(driversTable.id, body.driverId))
     .limit(1);
 
-  if (bookingDetail && driverDetail) {
-    console.log(`[WhatsApp stub] Notify driver of new ride assignment.`);
-    console.log(`  Driver  : ${driverDetail.name} (${driverDetail.phone})`);
-    console.log(`  Booking : ${result.bookingRef}`);
-    console.log(`  Rider   : ${bookingDetail.customerName} (${bookingDetail.customerPhone})`);
-    console.log(`  Journey : ${bookingDetail.journeyDate} at ${bookingDetail.journeyTime}`);
-    console.log(`  Route   : ${bookingDetail.pickupName} → ${bookingDetail.dropName}`);
-    console.log(`  Vehicle : ${bookingDetail.vehicleType}${bookingDetail.ac ? " AC" : ""} · ${bookingDetail.members} pax`);
-    console.log(`  Fare    : ₹${bookingDetail.totalFare}`);
-    console.log(`  Ride URL: ${driverUrl}`);
-    console.log(`  Message : "Hi ${driverDetail.name}, you have been assigned a new ride. Booking: ${result.bookingRef}. Rider: ${bookingDetail.customerName} (${bookingDetail.customerPhone}). Date: ${bookingDetail.journeyDate} at ${bookingDetail.journeyTime}. From: ${bookingDetail.pickupName}. To: ${bookingDetail.dropName}. Fare: ₹${bookingDetail.totalFare}. Open your ride sheet here: ${driverUrl}"`);
+  if (bookingDetail && driverDetail?.phone) {
+    await sendBookingAssigned({
+      driverPhone:     driverDetail.phone,
+      driverName:      driverDetail.name ?? "Driver",
+      bookingRef:      result.bookingRef,
+      journeyDateTime: `${bookingDetail.journeyDate} ${bookingDetail.journeyTime}`,
+      pickupName:      bookingDetail.pickupName ?? "",
+      dropName:        bookingDetail.dropName   ?? "",
+      totalFare:       String(bookingDetail.totalFare),
+      rideUrl:         driverUrl,
+    }).catch((err) =>
+      logger.warn({ module: "whatsapp", action: "sendBookingAssigned", bookingId: params.bookingId, err }, "WhatsApp send failed")
+    );
   }
 
   set.status = 200;
