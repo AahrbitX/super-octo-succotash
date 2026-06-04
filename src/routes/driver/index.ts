@@ -1,4 +1,5 @@
 import Elysia from "elysia";
+import { rateLimit } from "elysia-rate-limit";
 import { desc, eq } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
@@ -11,6 +12,7 @@ const pickupPlace = alias(placesTable, "pickup_place");
 const dropPlace = alias(placesTable, "drop_place");
 
 export const driverRouter = new Elysia({ prefix: "/driver" })
+  .use(rateLimit({ max: 30, duration: 60_000 }))
 
   /** GET /api/driver/:token — public, returns ride details for the driver */
   .get("/:token", async ({ params, set }) => {

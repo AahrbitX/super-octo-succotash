@@ -1,6 +1,9 @@
 import Elysia, { t } from "elysia";
+import { rateLimit } from "elysia-rate-limit";
 
-export const distanceRouter = new Elysia({ prefix: "/distance" }).get(
+export const distanceRouter = new Elysia({ prefix: "/distance" })
+  .use(rateLimit({ max: 60, duration: 60_000 }))
+  .get(
   "/",
   async ({ query }) => {
     const { pickupLat, pickupLng, dropLat, dropLng } = query;
@@ -15,7 +18,7 @@ export const distanceRouter = new Elysia({ prefix: "/distance" }).get(
 
     try {
       const res  = await fetch(url);
-      const data = await res.json();
+      const data = await res.json() as any;
       const meters: number | undefined = data.routes?.[0]?.distance;
       if (meters == null) return { success: false, distanceKm: null };
       const distanceKm = Math.round((meters / 1000) * 10) / 10;

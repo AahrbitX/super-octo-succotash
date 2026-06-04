@@ -1,4 +1,5 @@
 import Elysia from "elysia";
+import { requireAdmin } from "@/lib/guards";
 
 import { auth } from "@/lib/auth";
 import { logger } from "@/lib/logging";
@@ -36,6 +37,7 @@ export const dispatchersRouter = new Elysia({ prefix: "/dispatchers" })
     }
     return { user: session.user };
   })
+  .onBeforeHandle(requireAdmin)
   .get("/", dispatchersList, dispatchersListSchema)
   .get("/:bookingId", dispatcherTripDetails, dispatcherTripDetailsSchema)
   .get(

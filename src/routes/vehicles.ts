@@ -1,9 +1,12 @@
 import Elysia from "elysia";
+import { rateLimit } from "elysia-rate-limit";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { fleetVehicles, vehiclePricing } from "@/db/schema";
 
-export const vehiclesRouter = new Elysia({ prefix: "/vehicles" }).get(
+export const vehiclesRouter = new Elysia({ prefix: "/vehicles" })
+  .use(rateLimit({ max: 60, duration: 60_000 }))
+  .get(
   "/",
   async () => {
     const [fleetRows, pricingRows] = await Promise.all([

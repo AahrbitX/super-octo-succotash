@@ -1,5 +1,6 @@
 import Elysia from "elysia";
 import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/guards";
 
 import { usersList, usersListSchema } from "./users.list";
 import { userDetails, userDetailsSchema } from "./users.details";
@@ -22,14 +23,17 @@ export const usersRouter = new Elysia({ prefix: "/users" })
     }
     return { user: session.user };
   })
-  .get("/", usersList, usersListSchema)
+  // ── User-accessible routes (own profile only) ───────────────────────────────
   .get("/stats", userStats, userStatsSchema)
   .get("/me/has-password", usersHasPassword, usersHasPasswordSchema)
   .post("/me/password", usersSetPassword, usersSetPasswordSchema)
   .patch("/me/consent", updateConsent, updateConsentSchema)
   .patch("/me", updateMe, updateMeSchema)
+  // ── Admin-only routes ────────────────────────────────────────────────────────
+  .onBeforeHandle(requireAdmin)
+  .get("/", usersList, usersListSchema)
+  .get("/:id", userDetails, userDetailsSchema)
+  .post("/", createUser, createUserSchema)
   .patch("/:id", updateUser, updateUserSchema)
   .patch("/:id/suspend", suspendUser, suspendUserSchema)
-  .get("/:id", userDetails, userDetailsSchema)
-  .delete("/:id", deleteUser, deleteUserSchema)
-  .post("/", createUser, createUserSchema);
+  .delete("/:id", deleteUser, deleteUserSchema);

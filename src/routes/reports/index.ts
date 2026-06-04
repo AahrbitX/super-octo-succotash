@@ -1,7 +1,7 @@
 import Elysia from "elysia";
 import { auth } from "@/lib/auth";
-
 import { logger } from "@/lib/logging";
+import { requireAdmin } from "@/lib/guards";
 import {
   dashboardRidesList,
   dashboardRidesListSchema,
@@ -30,5 +30,6 @@ export const reportsRouter = new Elysia({ prefix: "/reports" })
     }
     return { user: session.user };
   })
+  .onBeforeHandle(requireAdmin)
   .get("/dashboard/rides", dashboardRidesList, dashboardRidesListSchema)
   .get("/dashboard/charts", dashboardCharts, dashboardChartsSchema);

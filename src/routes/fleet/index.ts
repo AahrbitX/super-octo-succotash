@@ -1,5 +1,6 @@
 import Elysia from "elysia";
 import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/guards";
 
 import { fleetList, fleetListSchema } from "./fleet.list";
 import { fleetCreate, fleetCreateSchema } from "./fleet.create";
@@ -15,6 +16,7 @@ export const fleetRouter = new Elysia({ prefix: "/fleet" })
     }
     return { user: session.user };
   })
+  .onBeforeHandle(requireAdmin)
   .get("/", fleetList, fleetListSchema)
   .post("/", fleetCreate, fleetCreateSchema)
   .patch("/:id", fleetUpdate, fleetUpdateSchema)

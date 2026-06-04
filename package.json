@@ -30,6 +30,7 @@
     "better-auth": "^1.6.5",
     "drizzle-orm": "^0.45.2",
     "elysia": "^1.4.28",
+    "elysia-rate-limit": "^4.6.2",
     "libsql": "^0.5.29",
     "nanoid": "^5.1.9",
     "pino": "^10.3.1",

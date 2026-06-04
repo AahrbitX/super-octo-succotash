@@ -1,6 +1,7 @@
 import Elysia, { t } from "elysia";
 import { auth } from "@/lib/auth";
 import { logger } from "@/lib/logging";
+import { requireAdmin } from "@/lib/guards";
 
 import { driversList, driversListSchema } from "./drivers.list";
 import { updateDriver, updateDriverSchema } from "./drivers.update";
@@ -45,6 +46,7 @@ export const driversRouter = new Elysia({ prefix: "/drivers" })
 
     return { user: session.user };
   })
+  .onBeforeHandle(requireAdmin)
   .get("/", driversList, driversListSchema)
   .get("/:id", driverDetails, driverDetailsSchema)
   .post("/onboard", onboardDriver, onboardDriverSchema)
