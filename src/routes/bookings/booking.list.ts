@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { logger } from "@/lib/logging";
 
 import { t } from "elysia";
-import { and, count, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, ilike, lte, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { user as usersTable } from "@/db/auth-schema";
 
@@ -20,6 +20,10 @@ export const bookingListSchema = {
     pageSize: t.Optional(t.String()),
     userId:   t.Optional(t.String()), // admin: filter bookings for a specific user
     driverId: t.Optional(t.String()), // admin: filter bookings for a specific driver
+    search:   t.Optional(t.String()), // admin: search by bookingRef
+    status:   t.Optional(t.String()), // admin: filter by booking status
+    dateFrom: t.Optional(t.String()), // admin: journeyDate >= dateFrom
+    dateTo:   t.Optional(t.String()), // admin: journeyDate <= dateTo
   }),
   detail: {
     tags: ["Bookings"],
@@ -67,13 +71,23 @@ const bookingList = async ({
   const pickupPlaces = alias(placesTable, "pickup_places");
   const dropPlaces = alias(placesTable, "drop_places");
 
-  const whereCondition = isAdmin
+  const baseCondition = isAdmin
     ? query.driverId
       ? eq(bookingsTable.driverId, query.driverId)
       : query.userId
         ? eq(bookingsTable.userId, query.userId)
         : undefined
     : eq(bookingsTable.userId, user.id);
+
+  const filterConditions = [
+    baseCondition,
+    query.search   ? ilike(bookingsTable.bookingRef, `%${query.search}%`) : undefined,
+    query.status   ? eq(bookingsTable.status, query.status as any)        : undefined,
+    query.dateFrom ? gte(bookingsTable.journeyDate, query.dateFrom)       : undefined,
+    query.dateTo   ? lte(bookingsTable.journeyDate, query.dateTo)         : undefined,
+  ].filter(Boolean) as any[];
+
+  const whereCondition = filterConditions.length > 0 ? and(...filterConditions) : undefined;
 
   const dataQuery = db
     .select({
@@ -96,30 +110,16 @@ const bookingList = async ({
       dropName: dropPlaces.name,
       journeyDate: bookingsTable.journeyDate,
       journeyTime: bookingsTable.journeyTime,
-      vehicleType: bookingsTable.vehicleType,
+      vehicleType:     bookingsTable.vehicleType,
+      tripType:        bookingsTable.tripType,
+      legType:         bookingsTable.legType,
+      linkedBookingId: bookingsTable.linkedBookingId,
       rating: reviewsTable.rating,
-      // Latest payment record for mode/status/id (correlated subquery — avoids row duplication from join)
-      payMode: sql<string>`(
-        SELECT mode FROM payments
-        WHERE booking_id = ${bookingsTable.id}
-        ORDER BY created_at DESC LIMIT 1
-      )`,
-      payStatus: sql<string>`(
-        SELECT status FROM payments
-        WHERE booking_id = ${bookingsTable.id}
-        ORDER BY created_at DESC LIMIT 1
-      )`,
-      // Sum of all confirmed payments — used to detect balance still due
-      payAmount: sql<string>`(
-        SELECT COALESCE(SUM(amount), 0)::text FROM payments
-        WHERE booking_id = ${bookingsTable.id}
-        AND status IN ('paid', 'cash_collected')
-      )`,
-      payId: sql<string>`(
-        SELECT id FROM payments
-        WHERE booking_id = ${bookingsTable.id}
-        ORDER BY created_at DESC LIMIT 1
-      )`,
+        // Latest payment fields — resolved via DISTINCT ON lateral join (replaces 4 correlated subqueries)
+      payMode:   sql<string>`latest_pay.mode`,
+      payStatus: sql<string>`latest_pay.status`,
+      payId:     sql<string>`latest_pay.pay_id`,
+      payAmount: sql<string>`COALESCE(pay_sum.pay_amount, '0')`,
     })
     .from(bookingsTable)
 
@@ -144,6 +144,25 @@ const bookingList = async ({
     .leftJoin(pickupPlaces, eq(bookingsTable.pickupId, pickupPlaces.id))
     .leftJoin(dropPlaces, eq(bookingsTable.dropId, dropPlaces.id))
     .leftJoin(reviewsTable, eq(bookingsTable.id, reviewsTable.bookingId))
+    // Single DISTINCT ON join replaces 4 correlated subqueries — massive speedup
+    .leftJoin(
+      sql`(
+        SELECT DISTINCT ON (booking_id)
+          booking_id, mode, status, id AS pay_id
+        FROM payments
+        ORDER BY booking_id, created_at DESC
+      ) AS latest_pay`,
+      sql`latest_pay.booking_id = ${bookingsTable.id}`,
+    )
+    .leftJoin(
+      sql`(
+        SELECT booking_id, COALESCE(SUM(amount), 0)::text AS pay_amount
+        FROM payments
+        WHERE status IN ('paid', 'cash_collected')
+        GROUP BY booking_id
+      ) AS pay_sum`,
+      sql`pay_sum.booking_id = ${bookingsTable.id}`,
+    )
 
     .where(whereCondition)
     .orderBy(desc(bookingsTable.createdAt))

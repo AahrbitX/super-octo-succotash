@@ -13,7 +13,7 @@ const rzp = new Razorpay({
 export const createOrderSchema = {
   body: t.Object({
     bookingId: t.String(),
-    amount:    t.Number(),          // ₹ (not paise)
+    amount:    t.Number(),   // ₹ (not paise) — full amount charged now (advance or full)
     mode:      t.Union([t.Literal("full"), t.Literal("partial")]),
   }),
   detail: {
@@ -60,7 +60,7 @@ export const createOrder = async ({
     receipt:  bookingId,
   });
 
-  // Persist payment record
+  // Single payment record on the booking (outbound for round trips)
   await db.insert(paymentsTable).values({
     bookingId,
     rzpOrderId: order.id,

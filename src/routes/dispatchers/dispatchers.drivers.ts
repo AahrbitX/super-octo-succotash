@@ -1,5 +1,6 @@
 import { t } from "elysia";
-import { and, asc, eq, inArray, not, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
+import { logger } from "@/lib/logging";
 import { alias } from "drizzle-orm/pg-core";
 
 import { db } from "@/db";
@@ -55,6 +56,7 @@ export const dispatcherSuggestedDrivers = async ({
   query: { search?: string; vehicleType?: string; ac?: string; seats?: string };
   set: any;
 }) => {
+  try {
   const pickupPlace = alias(placesTable, "pickup_place");
   const dropPlace   = alias(placesTable, "drop_place");
 
@@ -114,7 +116,8 @@ export const dispatcherSuggestedDrivers = async ({
     );
   }
 
-  // --- Fetch all drivers (no availability filter — show everyone) ---
+  // --- Inline conflict check via EXISTS subquery (1 query instead of 2) ---
+  // Cast status::text so PostgreSQL doesn't choke on enum-vs-text comparison
   const drivers = await db
     .select({
       id:            driversTable.id,
@@ -124,31 +127,21 @@ export const dispatcherSuggestedDrivers = async ({
       ac:            driversTable.ac,
       vehicleNumber: driversTable.vehicleNumber,
       isAvailable:   driversTable.isAvailable,
+      hasConflict:   sql<boolean>`EXISTS (
+        SELECT 1 FROM ${bookingsTable} AS conflict_check
+        WHERE conflict_check.driver_id = ${driversTable.id}
+          AND conflict_check.journey_date = ${booking.journeyDate}
+          AND conflict_check.status::text = ANY(ARRAY['pending','confirmed','ongoing'])
+          AND conflict_check.id != ${params.bookingId}
+          AND ABS(EXTRACT(EPOCH FROM (
+            conflict_check.journey_time::time - ${booking.journeyTime}::time
+          )) / 3600.0) < ${rideWindowHours}
+      )`,
     })
     .from(driversTable)
     .leftJoin(usersTable, eq(driversTable.userId, usersTable.id))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(asc(usersTable.name));
-
-  // --- Conflict check: drivers with a booking whose journey time overlaps
-  //     the target booking within the computed ride-window hours ---
-  const conflictStatuses = ["pending", "confirmed", "ongoing"] as const;
-
-  const conflictRows = await db
-    .select({ driverId: bookingsTable.driverId })
-    .from(bookingsTable)
-    .where(
-      and(
-        eq(bookingsTable.journeyDate, booking.journeyDate),
-        inArray(bookingsTable.status, conflictStatuses as any),
-        not(eq(bookingsTable.id, params.bookingId)),
-        sql`ABS(EXTRACT(EPOCH FROM (
-          ${bookingsTable.journeyTime}::time - ${booking.journeyTime}::time
-        )) / 3600.0) < ${rideWindowHours}`,
-      ),
-    );
-
-  const conflictDriverIds = new Set(conflictRows.map((r) => r.driverId).filter(Boolean));
 
   const result = drivers.map((d) => ({
     id:            d.id,
@@ -158,7 +151,7 @@ export const dispatcherSuggestedDrivers = async ({
     ac:            d.ac,
     vehicleNumber: d.vehicleNumber,
     isAvailable:   d.isAvailable,
-    hasConflict:   conflictDriverIds.has(d.id),
+    hasConflict:   Boolean(d.hasConflict),
     etaMin:        0,
   }));
 
@@ -171,4 +164,9 @@ export const dispatcherSuggestedDrivers = async ({
     },
     data: result,
   };
+  } catch (error: any) {
+    logger.error({ module: "dispatchers", action: "suggested_drivers", bookingId: params.bookingId, error: error.message, detail: error.detail }, "Failed to fetch suggested drivers");
+    set.status = 500;
+    return { success: false, message: "Failed to load drivers" };
+  }
 };

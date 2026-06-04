@@ -89,6 +89,10 @@ const bookingDetails = async ({
 
       qrToken: bookingsTable.qrToken,
 
+      tripType:        bookingsTable.tripType,
+      legType:         bookingsTable.legType,
+      linkedBookingId: bookingsTable.linkedBookingId,
+
       driverId: driversTable.id,
       driverName: driverUserTable.name,
       driverPhone: driverUserTable.phoneNumber,
@@ -218,6 +222,37 @@ const bookingDetails = async ({
     dropLng: booking.dropLng ? parseFloat(booking.dropLng) : null,
   };
 
+  // Fetch linked leg summary (round trips only)
+  let linkedLeg: {
+    id: string;
+    bookingRef: string;
+    status: string;
+    legType: string;
+    journeyDate: string;
+    journeyTime: string;
+    driverName: string | null;
+  } | null = null;
+
+  if (booking.linkedBookingId) {
+    const linkedDriverUser = alias(usersTable, "linked_driver_user");
+    const [lb] = await db
+      .select({
+        id:          bookingsTable.id,
+        bookingRef:  bookingsTable.bookingRef,
+        status:      bookingsTable.status,
+        legType:     bookingsTable.legType,
+        journeyDate: bookingsTable.journeyDate,
+        journeyTime: bookingsTable.journeyTime,
+        driverName:  linkedDriverUser.name,
+      })
+      .from(bookingsTable)
+      .leftJoin(driversTable, eq(bookingsTable.driverId, driversTable.id))
+      .leftJoin(linkedDriverUser, eq(driversTable.userId, linkedDriverUser.id))
+      .where(eq(bookingsTable.id, booking.linkedBookingId))
+      .limit(1);
+    linkedLeg = lb ?? null;
+  }
+
   // Fetch all payment records for this booking (separate query — avoids
   // leftJoin duplicating the booking row when multiple payments exist)
   const paymentRows = await db
@@ -258,6 +293,10 @@ const bookingDetails = async ({
       bookingRef: booking.bookingRef,
       source: booking.source,
       qrToken: booking.qrToken,
+      tripType:        booking.tripType,
+      legType:         booking.legType,
+      linkedBookingId: booking.linkedBookingId,
+      linkedLeg,
 
       rider,
       driver,

@@ -45,7 +45,7 @@ export const verifyPayment = async ({
     return { success: false, message: "Payment verification failed" };
   }
 
-  // 2. Update payment record
+  // 2. Update payment record — one record per Razorpay order
   await db
     .update(paymentsTable)
     .set({
@@ -55,20 +55,36 @@ export const verifyPayment = async ({
     })
     .where(eq(paymentsTable.rzpOrderId, rzp_order_id));
 
-  // 3. Update booking status — auto-complete if fully paid and already ongoing,
-  //    otherwise confirm if still pending. Never downgrade from "ongoing" to "confirmed".
+  // 3. Update booking status — confirm outbound (and linked return leg for round trips)
   const [currentBooking] = await db
-    .select({ status: bookingsTable.status })
+    .select({ status: bookingsTable.status, linkedBookingId: bookingsTable.linkedBookingId })
     .from(bookingsTable)
     .where(eq(bookingsTable.id, bookingId))
     .limit(1);
 
-  if (currentBooking && currentBooking.status !== "ongoing" && currentBooking.status !== "completed") {
+  if (currentBooking && currentBooking.status !== "ongoing" && currentBooking.status !== "completed" && currentBooking.status !== "cancelled") {
     await db
       .update(bookingsTable)
       .set({ status: "confirmed" })
       .where(eq(bookingsTable.id, bookingId));
     logger.info({ module: "payments", action: "verify", bookingId }, "Payment verified, booking confirmed");
+  }
+
+  // For round trips also confirm the return leg
+  if (currentBooking?.linkedBookingId) {
+    const [returnBooking] = await db
+      .select({ status: bookingsTable.status })
+      .from(bookingsTable)
+      .where(eq(bookingsTable.id, currentBooking.linkedBookingId))
+      .limit(1);
+
+    if (returnBooking && returnBooking.status !== "ongoing" && returnBooking.status !== "completed" && returnBooking.status !== "cancelled") {
+      await db
+        .update(bookingsTable)
+        .set({ status: "confirmed" })
+        .where(eq(bookingsTable.id, currentBooking.linkedBookingId));
+      logger.info({ module: "payments", action: "verify", linkedBookingId: currentBooking.linkedBookingId }, "Return leg confirmed");
+    }
   }
 
   // 4. Notify all admins — replace console.log with WhatsApp when ready

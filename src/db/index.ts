@@ -19,7 +19,12 @@ if (!connectionString) {
 
 // Disable prefetch as it can cause issues in certain environments/Docker
 // ssl: 'require' is needed for NeonDB
-const client = postgres(connectionString, { prepare: false, ssl: "require" });
+const client = postgres(connectionString, {
+  prepare: false,
+  ssl: "require",
+  max: 10,
+  connect_timeout: 30, // Neon free tier can take up to ~20s to wake from sleep
+});
 // Added this to set schema path to public
 await client`SET search_path TO public`;
 

@@ -43,13 +43,9 @@ const app = new Elysia()
       "Incoming Request",
     );
   })
-  .onAfterResponse(({ request, set, responseValue }) => {
+  .onAfterResponse(({ request, set }) => {
     logger.info(
-      {
-        url: request.url,
-        status: set.status,
-        responseBody: responseValue,
-      },
+      { method: request.method, url: request.url, status: set.status },
       "Response Sent",
     );
   })
@@ -64,14 +60,6 @@ const app = new Elysia()
 
   // Mouting this route to be handled by Better Auth
   .mount("/", auth.handler)
-
-  // Session middleware to attach user session to each request
-  .derive(async ({ request }) => {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-    return { session };
-  })
 
   // Health check endpoint
   .get("/", () => ({ status: "Mohan Cabs API is running" }), {

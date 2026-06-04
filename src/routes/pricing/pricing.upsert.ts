@@ -1,5 +1,4 @@
 import { t } from "elysia";
-import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db } from "@/db";
 import { vehiclePricing } from "@/db/schema";
@@ -23,26 +22,6 @@ export const pricingUpsert = async ({ user, body, set }: { user: any; body: any;
     return { success: false, message: "Forbidden" };
   }
 
-  const [existing] = await db
-    .select({ id: vehiclePricing.id })
-    .from(vehiclePricing)
-    .where(eq(vehiclePricing.vehicleType, body.vehicleType))
-    .limit(1);
-
-  if (existing) {
-    const [row] = await db
-      .update(vehiclePricing)
-      .set({
-        defaultAmount: String(body.defaultAmount),
-        defaultUnit:   body.defaultUnit,
-        serviceFares:  body.serviceFares,
-        updatedAt:     new Date(),
-      })
-      .where(eq(vehiclePricing.id, existing.id))
-      .returning();
-    return { success: true, data: row };
-  }
-
   const [row] = await db
     .insert(vehiclePricing)
     .values({
@@ -51,6 +30,15 @@ export const pricingUpsert = async ({ user, body, set }: { user: any; body: any;
       defaultAmount: String(body.defaultAmount),
       defaultUnit:   body.defaultUnit,
       serviceFares:  body.serviceFares,
+    })
+    .onConflictDoUpdate({
+      target: vehiclePricing.vehicleType,
+      set: {
+        defaultAmount: String(body.defaultAmount),
+        defaultUnit:   body.defaultUnit,
+        serviceFares:  body.serviceFares,
+        updatedAt:     new Date(),
+      },
     })
     .returning();
 

@@ -1,6 +1,6 @@
 import Elysia from "elysia";
 import { rateLimit } from "elysia-rate-limit";
-import { desc, eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { bookings as bookingsTable, payments as paymentsTable, places as placesTable } from "@/db/schema";
@@ -45,28 +45,27 @@ export const driverRouter = new Elysia({ prefix: "/driver" })
 
     const b = rows[0];
 
-    // Fetch ALL payment records for this booking to calculate real balance
-    const allPayments = await db
+    // Single query: aggregate total paid + find active cash_pending payment
+    const [paymentSummary] = await db
       .select({
-        paymentId:     paymentsTable.id,
-        paymentStatus: paymentsTable.status,
-        paymentAmount: paymentsTable.amount,
-        paymentMethod: paymentsTable.paymentMethod,
+        totalPaid: sql<string>`COALESCE(SUM(CASE WHEN ${paymentsTable.status} IN ('paid','cash_collected') THEN ${paymentsTable.amount}::numeric ELSE 0 END), 0)::text`,
+        cashPendingId:     sql<string | null>`MAX(CASE WHEN ${paymentsTable.status} = 'cash_pending' THEN ${paymentsTable.id} END)`,
+        cashPendingAmount: sql<string | null>`MAX(CASE WHEN ${paymentsTable.status} = 'cash_pending' THEN ${paymentsTable.amount} END)`,
+        cashPendingMethod: sql<string | null>`MAX(CASE WHEN ${paymentsTable.status} = 'cash_pending' THEN ${paymentsTable.paymentMethod} END)`,
       })
       .from(paymentsTable)
-      .where(eq(paymentsTable.bookingId, b.id))
-      .orderBy(desc(paymentsTable.createdAt));
+      .where(eq(paymentsTable.bookingId, b.id));
 
-    // Sum all completed payments (paid online or cash collected)
-    const totalPaid = allPayments
-      .filter(p => p.paymentStatus === "paid" || p.paymentStatus === "cash_collected")
-      .reduce((sum, p) => sum + parseFloat(p.paymentAmount ?? "0"), 0);
-
-    const totalFare = parseFloat(b.totalFare ?? "0");
-    const balanceDue = Math.max(0, totalFare - totalPaid);
-
-    // Active cash payment waiting for OTP (most important for driver)
-    const cashPending = allPayments.find(p => p.paymentStatus === "cash_pending");
+    const totalPaid   = parseFloat(paymentSummary?.totalPaid ?? "0");
+    const totalFare   = parseFloat(b.totalFare ?? "0");
+    const balanceDue  = Math.max(0, totalFare - totalPaid);
+    const cashPending = paymentSummary?.cashPendingId
+      ? {
+          paymentId:     paymentSummary.cashPendingId,
+          paymentAmount: paymentSummary.cashPendingAmount,
+          paymentMethod: paymentSummary.cashPendingMethod,
+        }
+      : null;
 
     return {
       success: true,
@@ -84,7 +83,7 @@ export const driverRouter = new Elysia({ prefix: "/driver" })
         members: b.members,
         pickupName: b.pickupName ?? "—",
         dropName: b.dropName ?? "—",
-        // Calculated from all DB payment records
+        // Calculated from DB payment aggregation
         totalPaid:    totalPaid.toFixed(2),
         balanceDue:   balanceDue.toFixed(2),
         // Active cash payment (driver needs to enter OTP for this)

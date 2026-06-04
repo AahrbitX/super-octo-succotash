@@ -56,7 +56,10 @@ export const places = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [index("idx_places_active").on(table.active)],
+  (table) => [
+    index("idx_places_active").on(table.active),
+    index("idx_places_name").on(table.name),
+  ],
 );
 
 // --- Table: bookings ---
@@ -72,6 +75,8 @@ export const bookings = pgTable(
     customerName: varchar("customer_name", { length: 150 }).notNull(),
     customerPhone: varchar("customer_phone", { length: 20 }).notNull(),
     source: varchar("source", { length: 20 }).notNull().default("admin"),
+    serviceType: varchar("service_type", { length: 20 }).notNull().default("local"), // 'local' | 'outstation' | 'airport'
+    notes: text("notes"),
     driverId: text("driver_id").references(() => drivers.id),
     pickupId: text("pickup_id")
       .notNull()
@@ -98,6 +103,10 @@ export const bookings = pgTable(
     rideEndedAt: timestamp("ride_ended_at", {
       withTimezone: true,
     }),
+    tripType: varchar("trip_type", { length: 10 }).notNull().default("oneway"),  // 'oneway' | 'roundtrip'
+    legType:  varchar("leg_type",  { length: 10 }).notNull().default("single"),  // 'single' | 'outbound' | 'return'
+    linkedBookingId: text("linked_booking_id"),  // ID of the other leg in a round trip
+
     qrToken: uuid("qr_token")
       .notNull()
       .unique()
@@ -117,11 +126,14 @@ export const bookings = pgTable(
       .defaultNow(),
   },
   (table) => [
-    index("idx_bookings_journey_driver").on(
-      table.journeyDate,
-      table.driverId,
-      table.status,
-    ),
+    index("idx_bookings_journey_driver").on(table.journeyDate, table.driverId, table.status),
+    index("idx_bookings_created_at").on(table.createdAt),
+    index("idx_bookings_user_id").on(table.userId),
+    index("idx_bookings_status").on(table.status),
+    index("idx_bookings_booking_ref").on(table.bookingRef),
+    index("idx_bookings_pickup_id").on(table.pickupId),
+    index("idx_bookings_drop_id").on(table.dropId),
+    index("idx_bookings_driver_id").on(table.driverId),
   ],
 );
 
@@ -156,11 +168,10 @@ export const payments = pgTable(
       .defaultNow(),
   },
   (table) => [
-    // Enforce at most one balance payment per booking at DB level.
-    // This makes the ON CONFLICT DO NOTHING upsert in create-balance safe under concurrency.
-    uniqueIndex("idx_payments_booking_balance")
-      .on(table.bookingId)
-      .where(sql`mode = 'balance'`),
+    uniqueIndex("idx_payments_booking_balance").on(table.bookingId).where(sql`mode = 'balance'`),
+    index("idx_payments_booking_id").on(table.bookingId),
+    index("idx_payments_created_at").on(table.createdAt),
+    index("idx_payments_status").on(table.status),
   ],
 );
 
@@ -216,6 +227,8 @@ export const drivers = pgTable(
     uniqueIndex("idx_drivers_user_id").on(table.userId),
     index("idx_drivers_available").on(table.isAvailable),
     index("idx_drivers_vehicle").on(table.vehicleType, table.ac),
+    index("idx_drivers_vehicle_number").on(table.vehicleNumber),
+    index("idx_drivers_created_at").on(table.createdAt),
   ],
 );
 
@@ -240,6 +253,7 @@ export const driverLocations = pgTable(
   },
   (table) => [
     index("idx_driver_locations_booking").on(table.bookingId, table.recordedAt),
+    index("idx_driver_locations_driver_id").on(table.driverId),
   ],
 );
 

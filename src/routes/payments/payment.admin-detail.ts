@@ -1,11 +1,12 @@
 import { t } from "elysia";
 import { eq } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { logger } from "@/lib/logging";
 import {
   bookings as bookingsTable,
   payments as paymentsTable,
-  places,
+  places as placesTable,
 } from "@/db/schema";
 
 export const adminPaymentDetailSchema = {
@@ -31,6 +32,9 @@ export const adminPaymentDetail = async ({
     return { success: false, message: "Admin access required", data: null };
   }
 
+  const pickupPlace = alias(placesTable, "pickup_place");
+  const dropPlace   = alias(placesTable, "drop_place");
+
   const [row] = await db
     .select({
       id: paymentsTable.id,
@@ -52,15 +56,17 @@ export const adminPaymentDetail = async ({
       journeyTime: bookingsTable.journeyTime,
       totalFare: bookingsTable.totalFare,
       bookingStatus: bookingsTable.status,
-      pickupId: bookingsTable.pickupId,
-      dropId: bookingsTable.dropId,
       members: bookingsTable.members,
       vehicleType: bookingsTable.vehicleType,
       userName: bookingsTable.customerName,
       userPhone: bookingsTable.customerPhone,
+      pickupName: pickupPlace.name,
+      dropName: dropPlace.name,
     })
     .from(paymentsTable)
     .innerJoin(bookingsTable, eq(paymentsTable.bookingId, bookingsTable.id))
+    .leftJoin(pickupPlace, eq(bookingsTable.pickupId, pickupPlace.id))
+    .leftJoin(dropPlace, eq(bookingsTable.dropId, dropPlace.id))
     .where(eq(paymentsTable.id, params.id))
     .limit(1);
 
@@ -69,21 +75,8 @@ export const adminPaymentDetail = async ({
     return { success: false, message: "Transaction not found", data: null };
   }
 
-  // Resolve place names
-  const [pickup, drop] = await Promise.all([
-    db.select({ name: places.name }).from(places).where(eq(places.id, row.pickupId)).limit(1),
-    db.select({ name: places.name }).from(places).where(eq(places.id, row.dropId)).limit(1),
-  ]);
-
   logger.info({ module: "payments", action: "admin-detail", paymentId: params.id }, "Admin fetched transaction detail");
 
   set.status = 200;
-  return {
-    success: true,
-    data: {
-      ...row,
-      pickupName: pickup[0]?.name ?? row.pickupId,
-      dropName: drop[0]?.name ?? row.dropId,
-    },
-  };
+  return { success: true, data: row };
 };

@@ -12,29 +12,36 @@ import {
 
 export const roleEnum = pgEnum("user_role", ["user", "driver", "admin"]);
 
-export const user = pgTable("user", {
-  id: text("id")
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  emailVerified: boolean("email_verified").default(false).notNull(),
-  image: text("image"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at")
-    .defaultNow()
-    .$onUpdate(() => /* @__PURE__ */ new Date())
-    .notNull(),
-  phoneNumber: text("phone_number").unique(),
-  phoneNumberVerified: boolean("phone_number_verified"),
-  role: roleEnum("role").notNull().default("user"),
-  dob: date("dob", { mode: "string" }),
-  banned: boolean("banned").default(false).notNull(),
-  bannedReason: text("banned_reason"),
-  marketingConsent: boolean("marketing_consent"),
-  marketingConsentAt: timestamp("marketing_consent_at"),
-  gender: text("gender"),
-});
+export const user = pgTable(
+  "user",
+  {
+    id: text("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    name: text("name").notNull(),
+    email: text("email").notNull().unique(),
+    emailVerified: boolean("email_verified").default(false).notNull(),
+    image: text("image"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+    phoneNumber: text("phone_number").unique(),
+    phoneNumberVerified: boolean("phone_number_verified"),
+    role: roleEnum("role").notNull().default("user"),
+    dob: date("dob", { mode: "string" }),
+    banned: boolean("banned").default(false).notNull(),
+    bannedReason: text("banned_reason"),
+    marketingConsent: boolean("marketing_consent"),
+    marketingConsentAt: timestamp("marketing_consent_at"),
+    gender: text("gender"),
+  },
+  (table) => [
+    index("idx_user_name").on(table.name),
+    index("idx_user_phone").on(table.phoneNumber),
+  ],
+);
 
 export const session = pgTable(
   "session",
