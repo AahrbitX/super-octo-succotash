@@ -1,6 +1,6 @@
 import Elysia from "elysia";
 import { rateLimit } from "elysia-rate-limit";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { bookings as bookingsTable, payments as paymentsTable, places as placesTable } from "@/db/schema";
@@ -46,25 +46,37 @@ export const driverRouter = new Elysia({ prefix: "/driver" })
 
     const b = rows[0];
 
-    // Single query: aggregate total paid + find active cash_pending payment
-    const [paymentSummary] = await db
+    // Query 1: sum of all paid amounts
+    const [sumRow] = await db
+      .select({ total: sql<string>`COALESCE(SUM(${paymentsTable.amount}::numeric), 0)::text` })
+      .from(paymentsTable)
+      .where(and(
+        eq(paymentsTable.bookingId, b.id),
+        inArray(paymentsTable.status, ["paid", "cash_collected"]),
+      ));
+
+    // Query 2: active cash_pending payment waiting for OTP
+    const [cashPendingRow] = await db
       .select({
-        totalPaid: sql<string>`COALESCE(SUM(CASE WHEN ${paymentsTable.status}::text IN ('paid','cash_collected') THEN ${paymentsTable.amount}::numeric ELSE 0 END), 0)::text`,
-        cashPendingId:     sql<string | null>`MAX(CASE WHEN ${paymentsTable.status}::text = 'cash_pending' THEN ${paymentsTable.id} END)`,
-        cashPendingAmount: sql<string | null>`MAX(CASE WHEN ${paymentsTable.status}::text = 'cash_pending' THEN ${paymentsTable.amount} END)`,
-        cashPendingMethod: sql<string | null>`MAX(CASE WHEN ${paymentsTable.status}::text = 'cash_pending' THEN ${paymentsTable.paymentMethod} END)`,
+        id:            paymentsTable.id,
+        amount:        paymentsTable.amount,
+        paymentMethod: paymentsTable.paymentMethod,
       })
       .from(paymentsTable)
-      .where(eq(paymentsTable.bookingId, b.id));
+      .where(and(
+        eq(paymentsTable.bookingId, b.id),
+        eq(paymentsTable.status, "cash_pending"),
+      ))
+      .limit(1);
 
-    const totalPaid   = parseFloat(paymentSummary?.totalPaid ?? "0");
-    const totalFare   = parseFloat(b.totalFare ?? "0");
-    const balanceDue  = Math.max(0, totalFare - totalPaid);
-    const cashPending = paymentSummary?.cashPendingId
+    const totalPaid  = parseFloat(sumRow?.total ?? "0");
+    const totalFare  = parseFloat(b.totalFare ?? "0");
+    const balanceDue = Math.max(0, totalFare - totalPaid);
+    const cashPending = cashPendingRow
       ? {
-          paymentId:     paymentSummary.cashPendingId,
-          paymentAmount: paymentSummary.cashPendingAmount,
-          paymentMethod: paymentSummary.cashPendingMethod,
+          paymentId:     cashPendingRow.id,
+          paymentAmount: cashPendingRow.amount,
+          paymentMethod: cashPendingRow.paymentMethod,
         }
       : null;
 
@@ -95,7 +107,7 @@ export const driverRouter = new Elysia({ prefix: "/driver" })
       },
     };
     } catch (error: any) {
-      logger.error({ module: "driver", action: "get_ride", token: params.token, error: error.message, detail: error.detail }, "Failed to fetch ride details");
+      logger.error({ module: "driver", action: "get_ride", token: params.token, error: error.message, cause: error.cause?.message, detail: error.detail }, "Failed to fetch ride details");
       set.status = 500;
       return { success: false, message: "Failed to load ride details" };
     }
