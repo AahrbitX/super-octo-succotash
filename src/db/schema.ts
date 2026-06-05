@@ -113,7 +113,7 @@ export const bookings = pgTable(
       .default(sql`gen_random_uuid()`),
     qrExpiresAt: timestamp("qr_expires_at", {
       withTimezone: true,
-    }).notNull(),
+    }).notNull().default(sql`NOW() + INTERVAL '7 days'`),
     createdAt: timestamp("created_at", {
       withTimezone: true,
     })

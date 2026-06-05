@@ -16,6 +16,7 @@ export const driverRouter = new Elysia({ prefix: "/driver" })
 
   /** GET /api/driver/:token — public, returns ride details for the driver */
   .get("/:token", async ({ params, set }) => {
+    try {
     const rows = await db
       .select({
         id: bookingsTable.id,
@@ -48,10 +49,10 @@ export const driverRouter = new Elysia({ prefix: "/driver" })
     // Single query: aggregate total paid + find active cash_pending payment
     const [paymentSummary] = await db
       .select({
-        totalPaid: sql<string>`COALESCE(SUM(CASE WHEN ${paymentsTable.status} IN ('paid','cash_collected') THEN ${paymentsTable.amount}::numeric ELSE 0 END), 0)::text`,
-        cashPendingId:     sql<string | null>`MAX(CASE WHEN ${paymentsTable.status} = 'cash_pending' THEN ${paymentsTable.id} END)`,
-        cashPendingAmount: sql<string | null>`MAX(CASE WHEN ${paymentsTable.status} = 'cash_pending' THEN ${paymentsTable.amount} END)`,
-        cashPendingMethod: sql<string | null>`MAX(CASE WHEN ${paymentsTable.status} = 'cash_pending' THEN ${paymentsTable.paymentMethod} END)`,
+        totalPaid: sql<string>`COALESCE(SUM(CASE WHEN ${paymentsTable.status}::text IN ('paid','cash_collected') THEN ${paymentsTable.amount}::numeric ELSE 0 END), 0)::text`,
+        cashPendingId:     sql<string | null>`MAX(CASE WHEN ${paymentsTable.status}::text = 'cash_pending' THEN ${paymentsTable.id} END)`,
+        cashPendingAmount: sql<string | null>`MAX(CASE WHEN ${paymentsTable.status}::text = 'cash_pending' THEN ${paymentsTable.amount} END)`,
+        cashPendingMethod: sql<string | null>`MAX(CASE WHEN ${paymentsTable.status}::text = 'cash_pending' THEN ${paymentsTable.paymentMethod} END)`,
       })
       .from(paymentsTable)
       .where(eq(paymentsTable.bookingId, b.id));
@@ -93,6 +94,11 @@ export const driverRouter = new Elysia({ prefix: "/driver" })
         paymentMethod: cashPending?.paymentMethod ?? null,
       },
     };
+    } catch (error: any) {
+      logger.error({ module: "driver", action: "get_ride", token: params.token, error: error.message, detail: error.detail }, "Failed to fetch ride details");
+      set.status = 500;
+      return { success: false, message: "Failed to load ride details" };
+    }
   })
 
   /** PATCH /api/driver/:token/start — public, driver starts the ride */
