@@ -13,10 +13,10 @@ import { user as usersTable } from "@/db/auth-schema";
 
 export const dashboardRidesListSchema = {
   query: t.Object({
-    date:     t.Optional(t.String()),
-    search:   t.Optional(t.String()),
-    status:   t.Optional(t.String()),
-    page:     t.Optional(t.String()),
+    date: t.Optional(t.String()),
+    search: t.Optional(t.String()),
+    status: t.Optional(t.String()),
+    page: t.Optional(t.String()),
     pageSize: t.Optional(t.String()),
   }),
 
@@ -33,20 +33,20 @@ export const dashboardRidesList = async ({
 }) => {
   const driverUsers = alias(usersTable, "driver_users");
   const pickupPlace = alias(placesTable, "pickup_place");
-  const dropPlace   = alias(placesTable, "drop_place");
+  const dropPlace = alias(placesTable, "drop_place");
 
-  const page     = Number(query.page)     || 1;
-  const pageSize = Number(query.pageSize) || 20;
-  const offset   = (page - 1) * pageSize;
+  const page = Number(query.page) || 1;
+  const pageSize = Number(query.pageSize) || 10;
+  const offset = (page - 1) * pageSize;
 
   const conditions = [];
 
   if (query.date) {
     // Use range instead of DATE() so the createdAt index is used
     const dayStart = new Date(`${query.date}T00:00:00.000Z`);
-    const dayEnd   = new Date(`${query.date}T23:59:59.999Z`);
+    const dayEnd = new Date(`${query.date}T23:59:59.999Z`);
     conditions.push(gte(bookingsTable.createdAt, dayStart));
-    conditions.push(lt(bookingsTable.createdAt,  dayEnd));
+    conditions.push(lt(bookingsTable.createdAt, dayEnd));
   }
 
   if (query.status) {
@@ -56,9 +56,9 @@ export const dashboardRidesList = async ({
   if (query.search) {
     conditions.push(
       or(
-        ilike(usersTable.name,           `%${query.search}%`),
+        ilike(usersTable.name, `%${query.search}%`),
         ilike(bookingsTable.customerName, `%${query.search}%`),
-        ilike(driverUsers.name,          `%${query.search}%`),
+        ilike(driverUsers.name, `%${query.search}%`),
       ),
     );
   }
@@ -78,16 +78,16 @@ export const dashboardRidesList = async ({
           )
         `,
         vehicle: bookingsTable.vehicleType,
-        fare:    bookingsTable.totalFare,
-        time:    bookingsTable.createdAt,
-        status:  bookingsTable.status,
+        fare: bookingsTable.totalFare,
+        time: bookingsTable.createdAt,
+        status: bookingsTable.status,
       })
       .from(bookingsTable)
-      .leftJoin(usersTable,   eq(bookingsTable.userId,   usersTable.id))
+      .leftJoin(usersTable, eq(bookingsTable.userId, usersTable.id))
       .leftJoin(driversTable, eq(bookingsTable.driverId, driversTable.id))
-      .leftJoin(driverUsers,  eq(driversTable.userId,    driverUsers.id))
-      .leftJoin(pickupPlace,  eq(bookingsTable.pickupId, pickupPlace.id))
-      .leftJoin(dropPlace,    eq(bookingsTable.dropId,   dropPlace.id))
+      .leftJoin(driverUsers, eq(driversTable.userId, driverUsers.id))
+      .leftJoin(pickupPlace, eq(bookingsTable.pickupId, pickupPlace.id))
+      .leftJoin(dropPlace, eq(bookingsTable.dropId, dropPlace.id))
       .where(whereCondition)
       .orderBy(desc(bookingsTable.createdAt))
       .limit(pageSize)
@@ -98,14 +98,11 @@ export const dashboardRidesList = async ({
       ? db
           .select({ value: count() })
           .from(bookingsTable)
-          .leftJoin(usersTable,   eq(bookingsTable.userId,   usersTable.id))
+          .leftJoin(usersTable, eq(bookingsTable.userId, usersTable.id))
           .leftJoin(driversTable, eq(bookingsTable.driverId, driversTable.id))
-          .leftJoin(driverUsers,  eq(driversTable.userId,    driverUsers.id))
+          .leftJoin(driverUsers, eq(driversTable.userId, driverUsers.id))
           .where(whereCondition)
-      : db
-          .select({ value: count() })
-          .from(bookingsTable)
-          .where(whereCondition),
+      : db.select({ value: count() }).from(bookingsTable).where(whereCondition),
 
     db
       .select({ status: bookingsTable.status, count: count() })
@@ -115,7 +112,13 @@ export const dashboardRidesList = async ({
 
   const totalCount = countResult?.value ?? 0;
 
-  const statusMap = { pending: 0, confirmed: 0, ongoing: 0, completed: 0, cancelled: 0 };
+  const statusMap = {
+    pending: 0,
+    confirmed: 0,
+    ongoing: 0,
+    completed: 0,
+    cancelled: 0,
+  };
   ridesStatus.forEach((item) => {
     if (item.status in statusMap)
       statusMap[item.status as keyof typeof statusMap] = Number(item.count);
