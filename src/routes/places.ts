@@ -30,7 +30,14 @@ function cacheSet(key: string, data: unknown, ttlMs: number) {
 // ── Router ────────────────────────────────────────────────────────────────────
 
 export const placesRouter = new Elysia({ prefix: "/places" })
-  .use(rateLimit({ max: 120, duration: 60_000 }))
+  .use(rateLimit({
+    max: 120,
+    duration: 60_000,
+    generator: (req, server) =>
+      server?.requestIP(req)?.address ??
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+      "unknown",
+  }))
 
   // ── Autocomplete ─────────────────────────────────────────────────────────────
   .get(
