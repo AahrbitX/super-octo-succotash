@@ -66,13 +66,14 @@ export const notifyDriver = async ({
     .set({ cashCode: otp })
     .where(eq(paymentsTable.id, id));
 
-  await sendCashCode({
-    to:   row.customerPhone,
-    code: otp,
-  }).catch((err: unknown) =>
-    logger.warn({ module: "whatsapp", action: "sendPaymentOtp", paymentId: id, err }, "WhatsApp send failed")
-  );
+  let otpSent = true;
+  try {
+    await sendCashCode({ to: row.customerPhone, code: otp });
+  } catch (err: unknown) {
+    otpSent = false;
+    logger.error({ module: "whatsapp", action: "sendPaymentOtp", paymentId: id, err }, "WhatsApp send failed");
+  }
 
   set.status = 200;
-  return { success: true, driverAssigned: true };
+  return { success: true, driverAssigned: true, otpSent };
 };

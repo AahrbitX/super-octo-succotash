@@ -62,14 +62,14 @@ export const resendCode = async ({
     return { success: false, message: "No OTP generated yet. Please tap 'Pay to Driver' first." };
   }
 
-  await sendCashCode({
-    to:   payment.customerPhone,
-    code: payment.cashCode,
-  }).catch((err: unknown) =>
-    logger.warn({ module: "whatsapp", action: "resendPaymentOtp", paymentId: id, err }, "WhatsApp send failed")
-  );
-
-  logger.info({ module: "payments", action: "resend-code", paymentId: id }, "Driver code resent");
+  try {
+    await sendCashCode({ to: payment.customerPhone, code: payment.cashCode });
+    logger.info({ module: "payments", action: "resend-code", paymentId: id }, "Driver code resent");
+  } catch (err: unknown) {
+    logger.error({ module: "whatsapp", action: "resendPaymentOtp", paymentId: id, err }, "WhatsApp send failed");
+    set.status = 502;
+    return { success: false, message: "Failed to send OTP via WhatsApp. Please try again." };
+  }
 
   set.status = 200;
   return { success: true };
