@@ -46,10 +46,12 @@ export const dispatcherTripDetails = async ({
       driverId: bookingsTable.driverId,
 
       pickupName: pickupTable.name,
-      pickupZone: pickupTable.zone,
+      pickupLat: pickupTable.lat,
+      pickupLng: pickupTable.lng,
 
       dropName: dropTable.name,
-      dropZone: dropTable.zone,
+      dropLat: dropTable.lat,
+      dropLng: dropTable.lng,
     })
     .from(bookingsTable)
     .leftJoin(pickupTable, eq(bookingsTable.pickupId, pickupTable.id))

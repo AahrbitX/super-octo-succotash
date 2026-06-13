@@ -12,7 +12,8 @@ export const listTransactionsSchema = {
   detail: {
     tags: ["Payments"],
     operationId: "listMyTransactions",
-    description: "Get the logged-in user's payment history and pending payments",
+    description:
+      "Get the logged-in user's payment history and pending payments",
   },
 };
 
@@ -29,7 +30,7 @@ export const listTransactions = async ({
   );
 
   const pickupPlace = alias(placesTable, "pickup_place");
-  const dropPlace   = alias(placesTable, "drop_place");
+  const dropPlace = alias(placesTable, "drop_place");
 
   const data = await db
     .select({

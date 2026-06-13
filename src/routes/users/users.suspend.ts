@@ -10,7 +10,10 @@ export const suspendUserSchema = {
     banned: t.Boolean(),
     reason: t.Optional(t.String()),
   }),
-  detail: { tags: ["Users"], description: "Suspend or unsuspend a user account" },
+  detail: {
+    tags: ["Users"],
+    description: "Suspend or unsuspend a user account",
+  },
 };
 
 export const suspendUser = async ({
@@ -50,7 +53,12 @@ export const suspendUser = async ({
     .where(eq(userTable.id, params.id));
 
   logger.info(
-    { module: "users", action: body.banned ? "suspend" : "unsuspend", targetId: params.id, adminId: user.id },
+    {
+      module: "users",
+      action: body.banned ? "suspend" : "unsuspend",
+      targetId: params.id,
+      adminId: user.id,
+    },
     body.banned ? "User suspended" : "User unsuspended",
   );
 

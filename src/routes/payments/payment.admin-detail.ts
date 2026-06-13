@@ -33,7 +33,7 @@ export const adminPaymentDetail = async ({
   }
 
   const pickupPlace = alias(placesTable, "pickup_place");
-  const dropPlace   = alias(placesTable, "drop_place");
+  const dropPlace = alias(placesTable, "drop_place");
 
   const [row] = await db
     .select({
@@ -75,7 +75,10 @@ export const adminPaymentDetail = async ({
     return { success: false, message: "Transaction not found", data: null };
   }
 
-  logger.info({ module: "payments", action: "admin-detail", paymentId: params.id }, "Admin fetched transaction detail");
+  logger.info(
+    { module: "payments", action: "admin-detail", paymentId: params.id },
+    "Admin fetched transaction detail",
+  );
 
   set.status = 200;
   return { success: true, data: row };
