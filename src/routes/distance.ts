@@ -7,23 +7,27 @@ export const distanceRouter = new Elysia({ prefix: "/distance" })
   "/",
   async ({ query }) => {
     const { pickupLat, pickupLng, dropLat, dropLng } = query;
-    const token = process.env.MAPBOX_TOKEN;
+    const apiKey = process.env.OLA_MAPS_API_KEY;
 
-    if (!token) return { success: false, distanceKm: null };
+    if (!apiKey) return { success: false, distanceKm: null };
 
     const url =
-      `https://api.mapbox.com/directions/v5/mapbox/driving/` +
-      `${pickupLng},${pickupLat};${dropLng},${dropLat}` +
-      `?access_token=${token}&overview=false`;
+      `https://api.olamaps.io/routing/v1/distanceMatrix` +
+      `?origins=${pickupLat},${pickupLng}&destinations=${dropLat},${dropLng}` +
+      `&api_key=${apiKey}`;
 
     try {
-      const res  = await fetch(url);
+      const res  = await fetch(url, {
+        headers: { "X-Request-Id": crypto.randomUUID() },
+      });
       const data = await res.json() as any;
-      const meters: number | undefined = data.routes?.[0]?.distance;
+      console.log("[distance] Ola Maps response:", JSON.stringify(data));
+      const meters: number | undefined = data.rows?.[0]?.elements?.[0]?.distance;
       if (meters == null) return { success: false, distanceKm: null };
       const distanceKm = Math.round((meters / 1000) * 10) / 10;
       return { success: true, distanceKm };
-    } catch {
+    } catch (err) {
+      console.error("[distance] fetch error:", err);
       return { success: false, distanceKm: null };
     }
   },

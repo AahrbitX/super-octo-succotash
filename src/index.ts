@@ -37,17 +37,13 @@ const app = new Elysia()
   )
 
   // For Logging Purpose
-  .onRequest(({ request }) => {
-    logger.info(
-      { method: request.method, url: request.url, requestBody: request.body },
-      "Incoming Request",
-    );
+  .onRequest(({ request, store }) => {
+    (store as any)._reqStart = Date.now();
   })
-  .onAfterResponse(({ request, set }) => {
-    logger.info(
-      { method: request.method, url: request.url, status: set.status },
-      "Response Sent",
-    );
+  .onAfterResponse(({ request, set, store }) => {
+    const duration = Date.now() - ((store as any)._reqStart ?? Date.now());
+    const path     = new URL(request.url).pathname;
+    logger.info({ method: request.method, path, status: set.status, duration }, "request");
   })
 
   // CORS middleware to allow requests from frontend
