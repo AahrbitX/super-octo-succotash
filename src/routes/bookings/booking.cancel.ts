@@ -1,17 +1,33 @@
 import { db } from "@/db";
+import { t } from "elysia";
 import { and, eq } from "drizzle-orm";
-import { bookings as bookingsTable, drivers as driversTable, payments as paymentsTable } from "@/db/schema";
+
+import {
+  bookings as bookingsTable,
+  drivers as driversTable,
+  payments as paymentsTable,
+} from "@/db/schema";
 import { user as usersTable } from "@/db/auth-schema";
+
 import { logger } from "@/lib/logging";
 import { sendBookingCancelledToDriver } from "@/lib/whatsapp";
 
+export const cancelBookingSchema = {
+  params: t.Object({
+    id: t.String(),
+  }),
+  detail: {
+    tags: ["Bookings"],
+    description: "",
+  },
+};
 export const cancelBooking = async ({
   user,
   params,
   set,
 }: {
   user: any;
-  params: { id: string };
+  params: (typeof cancelBookingSchema)["params"]["static"];
   set: any;
 }) => {
   const booking = await db
@@ -44,7 +60,10 @@ export const cancelBooking = async ({
 
   if (!["pending", "confirmed"].includes(booking[0].status)) {
     set.status = 400;
-    return { success: false, message: "Only pending or confirmed bookings can be cancelled" };
+    return {
+      success: false,
+      message: "Only pending or confirmed bookings can be cancelled",
+    };
   }
 
   await db
@@ -63,7 +82,15 @@ export const cancelBooking = async ({
       ),
     );
 
-  logger.info({ module: "bookings", action: "cancel", bookingId: params.id, userId: user.id }, "Booking cancelled");
+  logger.info(
+    {
+      module: "bookings",
+      action: "cancel",
+      bookingId: params.id,
+      userId: user.id,
+    },
+    "Booking cancelled",
+  );
 
   // Notify driver if one was assigned — replace console.log with WhatsApp when ready
   if (booking[0].driverId) {
@@ -76,14 +103,22 @@ export const cancelBooking = async ({
 
     if (driverRow?.phone) {
       await sendBookingCancelledToDriver({
-        driverPhone:  driverRow.phone,
-        driverName:   driverRow.name         ?? "Driver",
-        bookingRef:   booking[0].bookingRef,
+        driverPhone: driverRow.phone,
+        driverName: driverRow.name ?? "Driver",
+        bookingRef: booking[0].bookingRef,
         customerName: booking[0].customerName,
-        journeyDate:  booking[0].journeyDate,
-        journeyTime:  booking[0].journeyTime,
+        journeyDate: booking[0].journeyDate,
+        journeyTime: booking[0].journeyTime,
       }).catch((err) =>
-        logger.warn({ module: "whatsapp", action: "sendCancellation", bookingId: params.id, err }, "WhatsApp send failed")
+        logger.warn(
+          {
+            module: "whatsapp",
+            action: "sendCancellation",
+            bookingId: params.id,
+            err,
+          },
+          "WhatsApp send failed",
+        ),
       );
     }
   }

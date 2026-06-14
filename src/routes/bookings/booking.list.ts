@@ -16,14 +16,14 @@ import {
 
 export const bookingListSchema = {
   query: t.Object({
-    page:     t.Optional(t.String()),
+    page: t.Optional(t.String()),
     pageSize: t.Optional(t.String()),
-    userId:   t.Optional(t.String()), // admin: filter bookings for a specific user
+    userId: t.Optional(t.String()), // admin: filter bookings for a specific user
     driverId: t.Optional(t.String()), // admin: filter bookings for a specific driver
-    search:   t.Optional(t.String()), // admin: search by bookingRef
-    status:   t.Optional(t.String()), // admin: filter by booking status
+    search: t.Optional(t.String()), // admin: search by bookingRef
+    status: t.Optional(t.String()), // admin: filter by booking status
     dateFrom: t.Optional(t.String()), // admin: journeyDate >= dateFrom
-    dateTo:   t.Optional(t.String()), // admin: journeyDate <= dateTo
+    dateTo: t.Optional(t.String()), // admin: journeyDate <= dateTo
   }),
   detail: {
     tags: ["Bookings"],
@@ -81,13 +81,16 @@ const bookingList = async ({
 
   const filterConditions = [
     baseCondition,
-    query.search   ? ilike(bookingsTable.bookingRef, `%${query.search}%`) : undefined,
-    query.status   ? eq(bookingsTable.status, query.status as any)        : undefined,
-    query.dateFrom ? gte(bookingsTable.journeyDate, query.dateFrom)       : undefined,
-    query.dateTo   ? lte(bookingsTable.journeyDate, query.dateTo)         : undefined,
+    query.search
+      ? ilike(bookingsTable.bookingRef, `%${query.search}%`)
+      : undefined,
+    query.status ? eq(bookingsTable.status, query.status as any) : undefined,
+    query.dateFrom ? gte(bookingsTable.journeyDate, query.dateFrom) : undefined,
+    query.dateTo ? lte(bookingsTable.journeyDate, query.dateTo) : undefined,
   ].filter(Boolean) as any[];
 
-  const whereCondition = filterConditions.length > 0 ? and(...filterConditions) : undefined;
+  const whereCondition =
+    filterConditions.length > 0 ? and(...filterConditions) : undefined;
 
   const dataQuery = db
     .select({
@@ -110,15 +113,15 @@ const bookingList = async ({
       dropName: dropPlaces.name,
       journeyDate: bookingsTable.journeyDate,
       journeyTime: bookingsTable.journeyTime,
-      vehicleType:     bookingsTable.vehicleType,
-      tripType:        bookingsTable.tripType,
-      legType:         bookingsTable.legType,
+      vehicleType: bookingsTable.vehicleType,
+      tripType: bookingsTable.tripType,
+      legType: bookingsTable.legType,
       linkedBookingId: bookingsTable.linkedBookingId,
       rating: reviewsTable.rating,
-        // Latest payment fields — resolved via DISTINCT ON lateral join (replaces 4 correlated subqueries)
-      payMode:   sql<string>`latest_pay.mode`,
+      // Latest payment fields — resolved via DISTINCT ON lateral join (replaces 4 correlated subqueries)
+      payMode: sql<string>`latest_pay.mode`,
       payStatus: sql<string>`latest_pay.status`,
-      payId:     sql<string>`latest_pay.pay_id`,
+      payId: sql<string>`latest_pay.pay_id`,
       payAmount: sql<string>`COALESCE(pay_sum.pay_amount, '0')`,
     })
     .from(bookingsTable)

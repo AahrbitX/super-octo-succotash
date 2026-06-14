@@ -2,8 +2,8 @@ import { db } from "@/db";
 import { logger } from "@/lib/logging";
 import { alias } from "drizzle-orm/pg-core";
 
-import { eq, avg, count, sql } from "drizzle-orm";
-import { desc } from "drizzle-orm";
+import { t } from "elysia";
+import { eq, avg, sql, desc } from "drizzle-orm";
 import {
   places as placesTable,
   bookings as bookingsTable,
@@ -14,6 +14,9 @@ import {
 import { user as usersTable } from "@/db/auth-schema";
 
 export const bookingDetailsSchema = {
+  params: t.Object({
+    id: t.String(),
+  }),
   detail: {
     tags: ["Bookings"],
     description: "",
@@ -27,7 +30,7 @@ const bookingDetails = async ({
 }: {
   user: any;
   set: any;
-  params: { id: string };
+  params: (typeof bookingDetailsSchema)["params"]["static"];
 }) => {
   logger.info(
     {
@@ -77,11 +80,11 @@ const bookingDetails = async ({
       totalFare: bookingsTable.totalFare,
       status: bookingsTable.status,
 
-      createdAt:    bookingsTable.createdAt,
-      confirmedAt:  bookingsTable.confirmedAt,
+      createdAt: bookingsTable.createdAt,
+      confirmedAt: bookingsTable.confirmedAt,
       rideStartedAt: bookingsTable.rideStartedAt,
-      rideEndedAt:  bookingsTable.rideEndedAt,
-      updatedAt:    bookingsTable.updatedAt,
+      rideEndedAt: bookingsTable.rideEndedAt,
+      updatedAt: bookingsTable.updatedAt,
 
       riderUserName: usersTable.name,
       riderPhone: usersTable.phoneNumber,
@@ -89,8 +92,8 @@ const bookingDetails = async ({
 
       qrToken: bookingsTable.qrToken,
 
-      tripType:        bookingsTable.tripType,
-      legType:         bookingsTable.legType,
+      tripType: bookingsTable.tripType,
+      legType: bookingsTable.legType,
       linkedBookingId: bookingsTable.linkedBookingId,
 
       driverId: driversTable.id,
@@ -100,8 +103,9 @@ const bookingDetails = async ({
       driverVehicleType: driversTable.vehicleType,
       driverAc: driversTable.ac,
 
-      reviewRating:     reviewsTable.rating,
-      reviewComment:    reviewsTable.comment,
+      reviewId: reviewsTable.id,
+      reviewRating: reviewsTable.rating,
+      reviewComment: reviewsTable.comment,
       reviewSubmittedAt: reviewsTable.submittedAt,
     })
     .from(bookingsTable)
@@ -179,7 +183,7 @@ const bookingDetails = async ({
     const [driverStats] = await db
       .select({
         totalTrips: sql<number>`COUNT(*) FILTER (WHERE ${bookingsTable.status} = 'completed')::int`,
-        avgRating:  avg(reviewsTable.rating),
+        avgRating: avg(reviewsTable.rating),
       })
       .from(bookingsTable)
       .leftJoin(reviewsTable, eq(reviewsTable.bookingId, bookingsTable.id))
@@ -237,13 +241,13 @@ const bookingDetails = async ({
     const linkedDriverUser = alias(usersTable, "linked_driver_user");
     const [lb] = await db
       .select({
-        id:          bookingsTable.id,
-        bookingRef:  bookingsTable.bookingRef,
-        status:      bookingsTable.status,
-        legType:     bookingsTable.legType,
+        id: bookingsTable.id,
+        bookingRef: bookingsTable.bookingRef,
+        status: bookingsTable.status,
+        legType: bookingsTable.legType,
         journeyDate: bookingsTable.journeyDate,
         journeyTime: bookingsTable.journeyTime,
-        driverName:  linkedDriverUser.name,
+        driverName: linkedDriverUser.name,
       })
       .from(bookingsTable)
       .leftJoin(driversTable, eq(bookingsTable.driverId, driversTable.id))
@@ -257,16 +261,16 @@ const bookingDetails = async ({
   // leftJoin duplicating the booking row when multiple payments exist)
   const paymentRows = await db
     .select({
-      id:               paymentsTable.id,
-      amount:           paymentsTable.amount,
-      status:           paymentsTable.status,
-      paymentMethod:    paymentsTable.paymentMethod,
-      mode:             paymentsTable.mode,
-      paidAt:           paymentsTable.paidAt,
-      cashVerifiedAt:   paymentsTable.cashVerifiedAt,
-      adminVerifiedBy:  paymentsTable.adminVerifiedBy,
-      adminVerifiedAt:  paymentsTable.adminVerifiedAt,
-      createdAt:        paymentsTable.createdAt,
+      id: paymentsTable.id,
+      amount: paymentsTable.amount,
+      status: paymentsTable.status,
+      paymentMethod: paymentsTable.paymentMethod,
+      mode: paymentsTable.mode,
+      paidAt: paymentsTable.paidAt,
+      cashVerifiedAt: paymentsTable.cashVerifiedAt,
+      adminVerifiedBy: paymentsTable.adminVerifiedBy,
+      adminVerifiedAt: paymentsTable.adminVerifiedAt,
+      createdAt: paymentsTable.createdAt,
     })
     .from(paymentsTable)
     .where(eq(paymentsTable.bookingId, params.id))
@@ -293,8 +297,8 @@ const bookingDetails = async ({
       bookingRef: booking.bookingRef,
       source: booking.source,
       qrToken: booking.qrToken,
-      tripType:        booking.tripType,
-      legType:         booking.legType,
+      tripType: booking.tripType,
+      legType: booking.legType,
       linkedBookingId: booking.linkedBookingId,
       linkedLeg,
 
@@ -313,44 +317,45 @@ const bookingDetails = async ({
 
       // Single-payment summary for backward-compat (used by admin detail page)
       payment: {
-        fare:            booking.totalFare,
-        amount:          latestPayment?.amount ?? null,
-        status:          latestPayment?.status ?? null,
-        method:          latestPayment?.paymentMethod ?? null,
-        mode:            latestPayment?.mode ?? null,
-        paidAt:          latestPayment?.paidAt ?? null,
-        cashVerifiedAt:  latestPayment?.cashVerifiedAt ?? null,
+        fare: booking.totalFare,
+        amount: latestPayment?.amount ?? null,
+        status: latestPayment?.status ?? null,
+        method: latestPayment?.paymentMethod ?? null,
+        mode: latestPayment?.mode ?? null,
+        paidAt: latestPayment?.paidAt ?? null,
+        cashVerifiedAt: latestPayment?.cashVerifiedAt ?? null,
         adminVerifiedBy: latestPayment?.adminVerifiedBy ?? null,
         adminVerifiedAt: latestPayment?.adminVerifiedAt ?? null,
-        id:              latestPayment?.id ?? null,
+        id: latestPayment?.id ?? null,
       },
 
       // Full transaction history — all payment attempts for this booking
       transactions: paymentRows.map((p) => ({
-        id:            p.id,
-        amount:        p.amount,
-        status:        p.status,
-        method:        p.paymentMethod,
-        mode:          p.mode,
-        paidAt:        p.paidAt,
+        id: p.id,
+        amount: p.amount,
+        status: p.status,
+        method: p.paymentMethod,
+        mode: p.mode,
+        paidAt: p.paidAt,
         cashVerifiedAt: p.cashVerifiedAt,
-        createdAt:     p.createdAt,
+        createdAt: p.createdAt,
       })),
 
       status: booking.status,
 
       // Timestamps for each status milestone
       timeline: {
-        pending:   booking.createdAt,
+        pending: booking.createdAt,
         confirmed: booking.confirmedAt ?? null,
-        ongoing:   booking.rideStartedAt ?? null,
+        ongoing: booking.rideStartedAt ?? null,
         completed: booking.rideEndedAt ?? null,
       },
 
       review: booking.reviewRating
         ? {
-            rating:      booking.reviewRating,
-            comment:     booking.reviewComment ?? null,
+            id: booking.reviewId,
+            rating: booking.reviewRating,
+            comment: booking.reviewComment ?? null,
             submittedAt: booking.reviewSubmittedAt,
           }
         : null,

@@ -2,11 +2,19 @@ import { t } from "elysia";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { logger } from "@/lib/logging";
-import { bookings as bookingsTable, payments as paymentsTable } from "@/db/schema";
+import {
+  bookings as bookingsTable,
+  payments as paymentsTable,
+} from "@/db/schema";
 
 export const driverVerifyPaymentSchema = {
   params: t.Object({ token: t.String() }),
   body: t.Object({ code: t.String({ minLength: 1 }) }),
+  detail: {
+    tags: ["Driver"],
+    operationId: "verify-payment",
+    description: "",
+  },
 };
 
 export const driverVerifyPayment = async ({
@@ -45,13 +53,25 @@ export const driverVerifyPayment = async ({
 
   if (!payment) {
     set.status = 400;
-    return { success: false, message: "No pending cash payment found for this ride" };
+    return {
+      success: false,
+      message: "No pending cash payment found for this ride",
+    };
   }
 
-  if (!payment.cashCode || code.trim().toUpperCase() !== payment.cashCode.toUpperCase()) {
-    logger.warn({ module: "driver", action: "verify-payment", bookingId: booking.id }, "Invalid payment OTP entered by driver");
+  if (
+    !payment.cashCode ||
+    code.trim().toUpperCase() !== payment.cashCode.toUpperCase()
+  ) {
+    logger.warn(
+      { module: "driver", action: "verify-payment", bookingId: booking.id },
+      "Invalid payment OTP entered by driver",
+    );
     set.status = 400;
-    return { success: false, message: "Invalid OTP. Ask the customer to check their WhatsApp." };
+    return {
+      success: false,
+      message: "Invalid OTP. Ask the customer to check their WhatsApp.",
+    };
   }
 
   await db
@@ -59,7 +79,10 @@ export const driverVerifyPayment = async ({
     .set({ status: "cash_collected", cashVerifiedAt: new Date() })
     .where(eq(paymentsTable.id, payment.id));
 
-  logger.info({ module: "driver", action: "verify-payment", bookingId: booking.id }, "Cash payment confirmed by driver");
+  logger.info(
+    { module: "driver", action: "verify-payment", bookingId: booking.id },
+    "Cash payment confirmed by driver",
+  );
 
   return { success: true, message: "Cash payment confirmed" };
 };

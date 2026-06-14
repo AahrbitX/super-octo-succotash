@@ -6,6 +6,11 @@ import { bookings as bookingsTable } from "@/db/schema";
 
 export const driverEndRideSchema = {
   params: t.Object({ token: t.String() }),
+  detail: {
+    tags: ["Driver"],
+    operationId: "end-ride",
+    description: "",
+  },
 };
 
 export const driverEndRide = async ({
@@ -18,7 +23,11 @@ export const driverEndRide = async ({
   const { token } = params;
 
   const [booking] = await db
-    .select({ id: bookingsTable.id, status: bookingsTable.status, bookingRef: bookingsTable.bookingRef })
+    .select({
+      id: bookingsTable.id,
+      status: bookingsTable.status,
+      bookingRef: bookingsTable.bookingRef,
+    })
     .from(bookingsTable)
     .where(eq(bookingsTable.qrToken, token))
     .limit(1);
@@ -41,11 +50,20 @@ export const driverEndRide = async ({
 
   await db
     .update(bookingsTable)
-    .set({ status: "completed", rideEndedAt: new Date(), updatedAt: new Date() })
+    .set({
+      status: "completed",
+      rideEndedAt: new Date(),
+      updatedAt: new Date(),
+    })
     .where(eq(bookingsTable.id, booking.id));
 
   logger.info(
-    { module: "driver", action: "end_ride", bookingId: booking.id, bookingRef: booking.bookingRef },
+    {
+      module: "driver",
+      action: "end_ride",
+      bookingId: booking.id,
+      bookingRef: booking.bookingRef,
+    },
     "Ride ended by driver",
   );
 
