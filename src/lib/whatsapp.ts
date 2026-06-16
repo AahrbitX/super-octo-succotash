@@ -165,6 +165,7 @@ export async function sendCashCode(payload: CashCodePayload): Promise<void> {
     to:           normalizePhone(payload.to),
     templateName: "payment_otp",
     bodyParams:   [payload.code],
+    buttonParam:  payload.code,
   });
 }
 
