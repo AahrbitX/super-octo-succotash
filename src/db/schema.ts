@@ -75,7 +75,9 @@ export const bookings = pgTable(
     customerName: varchar("customer_name", { length: 150 }).notNull(),
     customerPhone: varchar("customer_phone", { length: 20 }).notNull(),
     source: varchar("source", { length: 20 }).notNull().default("admin"),
-    serviceType: varchar("service_type", { length: 20 }).notNull().default("local"), // 'local' | 'outstation' | 'airport'
+    serviceType: varchar("service_type", { length: 20 })
+      .notNull()
+      .default("local"), // 'local' | 'outstation' | 'airport'
     notes: text("notes"),
     driverId: text("driver_id").references(() => drivers.id),
     pickupId: text("pickup_id")
@@ -103,9 +105,9 @@ export const bookings = pgTable(
     rideEndedAt: timestamp("ride_ended_at", {
       withTimezone: true,
     }),
-    tripType: varchar("trip_type", { length: 10 }).notNull().default("oneway"),  // 'oneway' | 'roundtrip'
-    legType:  varchar("leg_type",  { length: 10 }).notNull().default("single"),  // 'single' | 'outbound' | 'return'
-    linkedBookingId: text("linked_booking_id"),  // ID of the other leg in a round trip
+    tripType: varchar("trip_type", { length: 10 }).notNull().default("oneway"), // 'oneway' | 'roundtrip'
+    legType: varchar("leg_type", { length: 10 }).notNull().default("single"), // 'single' | 'outbound' | 'return'
+    linkedBookingId: text("linked_booking_id"), // ID of the other leg in a round trip
 
     qrToken: uuid("qr_token")
       .notNull()
@@ -113,7 +115,9 @@ export const bookings = pgTable(
       .default(sql`gen_random_uuid()`),
     qrExpiresAt: timestamp("qr_expires_at", {
       withTimezone: true,
-    }).notNull().default(sql`NOW() + INTERVAL '7 days'`),
+    })
+      .notNull()
+      .default(sql`NOW() + INTERVAL '7 days'`),
     createdAt: timestamp("created_at", {
       withTimezone: true,
     })
@@ -126,7 +130,11 @@ export const bookings = pgTable(
       .defaultNow(),
   },
   (table) => [
-    index("idx_bookings_journey_driver").on(table.journeyDate, table.driverId, table.status),
+    index("idx_bookings_journey_driver").on(
+      table.journeyDate,
+      table.driverId,
+      table.status,
+    ),
     index("idx_bookings_created_at").on(table.createdAt),
     index("idx_bookings_user_id").on(table.userId),
     index("idx_bookings_status").on(table.status),
@@ -158,7 +166,9 @@ export const payments = pgTable(
     refundId: varchar("refund_id", { length: 100 }),
     refundedBy: text("refunded_by").references(() => user.id),
     paidAt: timestamp("paid_at", { withTimezone: true }),
-    paymentMethod: varchar("payment_method", { length: 10 }).notNull().default("online"),
+    paymentMethod: varchar("payment_method", { length: 10 })
+      .notNull()
+      .default("online"),
     cashCode: varchar("cash_code", { length: 10 }),
     cashVerifiedAt: timestamp("cash_verified_at", { withTimezone: true }),
     adminVerifiedBy: text("admin_verified_by").references(() => user.id),
@@ -168,7 +178,9 @@ export const payments = pgTable(
       .defaultNow(),
   },
   (table) => [
-    uniqueIndex("idx_payments_booking_balance").on(table.bookingId).where(sql`mode = 'balance'`),
+    uniqueIndex("idx_payments_booking_balance")
+      .on(table.bookingId)
+      .where(sql`mode = 'balance'`),
     index("idx_payments_booking_id").on(table.bookingId),
     index("idx_payments_created_at").on(table.createdAt),
     index("idx_payments_status").on(table.status),
@@ -191,8 +203,8 @@ export const reviews = pgTable("reviews", {
   unread: boolean("unread").default(true).notNull(),
   ratingPunctuality: smallint("rating_punctuality"),
   ratingCleanliness: smallint("rating_cleanliness"),
-  ratingBehavior:    smallint("rating_behavior"),
-  ratingDriving:     smallint("rating_driving"),
+  ratingBehavior: smallint("rating_behavior"),
+  ratingDriving: smallint("rating_driving"),
   submittedAt: timestamp("submitted_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -272,7 +284,6 @@ export const ticketCategoryEnum = pgEnum("ticket_category", [
   "route_issue",
   "other",
 ]);
-
 export const supportTickets = pgTable(
   "support_tickets",
   {
@@ -313,12 +324,19 @@ export const fleetVehicles = pgTable(
     bags: smallint("bags").notNull().default(2),
     ac: boolean("ac").notNull().default(true),
     fuel: varchar("fuel", { length: 50 }).notNull().default("Petrol"),
-    features: text("features").array().notNull().default(sql`'{}'::text[]`),
+    features: text("features")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     priceFrom: varchar("price_from", { length: 30 }),
     active: boolean("active").notNull().default(true),
     sortOrder: smallint("sort_order").notNull().default(0),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
     index("idx_fleet_vehicles_active").on(table.active, table.sortOrder),
@@ -327,24 +345,31 @@ export const fleetVehicles = pgTable(
 );
 
 // --- Table: vehicle_pricing ---
-export const vehiclePricing = pgTable(
-  "vehicle_pricing",
-  {
-    id: text("id").primaryKey(),
-    vehicleType: varchar("vehicle_type", { length: 100 }).notNull().unique(),
-    defaultAmount: numeric("default_amount", { precision: 8, scale: 2 }).notNull().default("0"),
-    defaultUnit: varchar("default_unit", { length: 30 }).notNull().default("per km"),
-    serviceFares: jsonb("service_fares").$type<Record<string, { amount: number; unit: string }>>().notNull().default({}),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-);
+export const vehiclePricing = pgTable("vehicle_pricing", {
+  id: text("id").primaryKey(),
+  vehicleType: varchar("vehicle_type", { length: 100 }).notNull().unique(),
+  defaultAmount: numeric("default_amount", { precision: 8, scale: 2 })
+    .notNull()
+    .default("0"),
+  defaultUnit: varchar("default_unit", { length: 30 })
+    .notNull()
+    .default("per km"),
+  serviceFares: jsonb("service_fares")
+    .$type<Record<string, { amount: number; unit: string }>>()
+    .notNull()
+    .default({}),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
 // --- DRIZZLE RELATIONS ---
 export const userRelations = relations(user, ({ many }) => ({
   bookings: many(bookings),
 }));
-
 export const bookingRelations = relations(bookings, ({ one }) => ({
   user: one(user, { fields: [bookings.userId], references: [user.id] }),
   pickup: one(places, { fields: [bookings.pickupId], references: [places.id] }),

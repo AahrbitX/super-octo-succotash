@@ -6,36 +6,40 @@ import { t } from "elysia";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { generateBookingId, generatePlaceId } from "@/utils/id";
-import { bookings as bookingsTable, places as placesTable, payments as paymentsTable } from "@/db/schema";
+import {
+  bookings as bookingsTable,
+  places as placesTable,
+  payments as paymentsTable,
+} from "@/db/schema";
 
 export const createBookingSchema = {
   body: t.Object({
-    customerName:  t.String(),
+    customerName: t.String(),
     customerPhone: t.String(),
-    source:        t.String(),
-    serviceType:   t.Optional(t.String()), // 'local' | 'outstation' | 'airport'
-    notes:         t.Optional(t.String()),
-    pickupName:    t.String(),
-    pickupZone:    t.String(),
-    pickupLat:     t.Optional(t.Number()),
-    pickupLng:     t.Optional(t.Number()),
-    dropName:      t.String(),
-    dropZone:      t.String(),
-    dropLat:       t.Optional(t.Number()),
-    dropLng:       t.Optional(t.Number()),
-    journeyDate:   t.String(),
-    journeyTime:   t.String(),
-    returnDate:    t.Optional(t.String()),
-    returnTime:    t.Optional(t.String()),
-    tripType:      t.Optional(t.String()), // 'oneway' | 'roundtrip'
-    members:       t.Number(),
-    vehicleType:   t.Union([
+    source: t.String(),
+    serviceType: t.Optional(t.String()), // 'local' | 'outstation' | 'airport'
+    notes: t.Optional(t.String()),
+    pickupName: t.String(),
+    pickupZone: t.String(),
+    pickupLat: t.Optional(t.Number()),
+    pickupLng: t.Optional(t.Number()),
+    dropName: t.String(),
+    dropZone: t.String(),
+    dropLat: t.Optional(t.Number()),
+    dropLng: t.Optional(t.Number()),
+    journeyDate: t.String(),
+    journeyTime: t.String(),
+    returnDate: t.Optional(t.String()),
+    returnTime: t.Optional(t.String()),
+    tripType: t.Optional(t.String()), // 'oneway' | 'roundtrip'
+    members: t.Number(),
+    vehicleType: t.Union([
       t.Literal("hatchback"),
       t.Literal("sedan"),
       t.Literal("suv"),
       t.Literal("minivan"),
     ]),
-    ac:        t.Boolean(),
+    ac: t.Boolean(),
     totalFare: t.String(),
   }),
   detail: {
@@ -55,7 +59,8 @@ const createBooking = async ({
   body: (typeof createBookingSchema)["body"]["static"];
 }) => {
   const requestId = crypto.randomUUID();
-  const isRoundTrip = body.tripType === "roundtrip" && !!body.returnDate && !!body.returnTime;
+  const isRoundTrip =
+    body.tripType === "roundtrip" && !!body.returnDate && !!body.returnTime;
 
   logger.info(
     {
@@ -72,13 +77,27 @@ const createBooking = async ({
 
   try {
     const {
-      customerName, customerPhone, source,
-      serviceType = "local", notes,
-      pickupName, pickupZone, pickupLat, pickupLng,
-      dropName,   dropZone,   dropLat,  dropLng,
-      journeyDate, journeyTime,
-      returnDate, returnTime,
-      members, vehicleType, ac, totalFare,
+      customerName,
+      customerPhone,
+      source,
+      serviceType = "local",
+      notes,
+      pickupName,
+      pickupZone,
+      pickupLat,
+      pickupLng,
+      dropName,
+      dropZone,
+      dropLat,
+      dropLng,
+      journeyDate,
+      journeyTime,
+      returnDate,
+      returnTime,
+      members,
+      vehicleType,
+      ac,
+      totalFare,
     } = body;
 
     // ── Resolve / create pickup place ─────────────────────────────────────────
@@ -100,8 +119,15 @@ const createBooking = async ({
         })
         .returning();
       if (!pickup) throw new Error("Unable to create pickup location");
-    } else if (pickupLat != null && pickupLng != null && (pickup.lat == null || pickup.lng == null)) {
-      await db.update(placesTable).set({ lat: String(pickupLat), lng: String(pickupLng) }).where(eq(placesTable.id, pickup.id));
+    } else if (
+      pickupLat != null &&
+      pickupLng != null &&
+      (pickup.lat == null || pickup.lng == null)
+    ) {
+      await db
+        .update(placesTable)
+        .set({ lat: String(pickupLat), lng: String(pickupLng) })
+        .where(eq(placesTable.id, pickup.id));
     }
 
     // ── Resolve / create drop place ───────────────────────────────────────────
@@ -123,31 +149,49 @@ const createBooking = async ({
         })
         .returning();
       if (!drop) throw new Error("Unable to create drop location");
-    } else if (dropLat != null && dropLng != null && (drop.lat == null || drop.lng == null)) {
-      await db.update(placesTable).set({ lat: String(dropLat), lng: String(dropLng) }).where(eq(placesTable.id, drop.id));
+    } else if (
+      dropLat != null &&
+      dropLng != null &&
+      (drop.lat == null || drop.lng == null)
+    ) {
+      await db
+        .update(placesTable)
+        .set({ lat: String(dropLat), lng: String(dropLng) })
+        .where(eq(placesTable.id, drop.id));
     }
 
-    const linkedUserId    = source === "self" ? user.id : null;
-    const initialStatus   = source === "admin" ? "confirmed" : "pending";
-    const qrExpiresAt     = new Date(Date.now() + 1000 * 60 * 60 * 24);
+    const linkedUserId = source === "self" ? user.id : null;
+    const initialStatus = source === "admin" ? "confirmed" : "pending";
+    const qrExpiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24);
 
     // ── ONE-WAY booking ───────────────────────────────────────────────────────
     if (!isRoundTrip) {
-      const bookingId  = generateBookingId();
+      const bookingId = generateBookingId();
       const bookingRef = `BK${Date.now()}`;
 
       const [booking] = await db
         .insert(bookingsTable)
         .values({
-          id: bookingId, bookingRef,
-          userId: linkedUserId, bookedByUserId: user.id,
-          customerName, customerPhone, source,
-          serviceType, notes,
+          id: bookingId,
+          bookingRef,
+          userId: linkedUserId,
+          bookedByUserId: user.id,
+          customerName,
+          customerPhone,
+          source,
+          serviceType,
+          notes,
           status: initialStatus,
-          pickupId: pickup.id, dropId: drop.id,
-          journeyDate, journeyTime,
-          members, vehicleType, ac, totalFare,
-          tripType: "oneway", legType: "single",
+          pickupId: pickup.id,
+          dropId: drop.id,
+          journeyDate,
+          journeyTime,
+          members,
+          vehicleType,
+          ac,
+          totalFare,
+          tripType: "oneway",
+          legType: "single",
           qrExpiresAt,
         })
         .returning();
@@ -158,36 +202,63 @@ const createBooking = async ({
         await db.insert(paymentsTable).values({
           bookingId: booking.id,
           rzpOrderId: `cash_admin_${nanoid(8)}`,
-          amount: totalFare, currency: "INR",
-          mode: "full", status: "cash_collected", paymentMethod: "cash",
+          amount: totalFare,
+          currency: "INR",
+          mode: "full",
+          status: "cash_collected",
+          paymentMethod: "cash",
         });
       }
 
-      logger.info({ requestId, module: "bookings", action: "create", bookingId: booking.id, bookingRef: booking.bookingRef }, "One-way booking created");
+      logger.info(
+        {
+          requestId,
+          module: "bookings",
+          action: "create",
+          bookingId: booking.id,
+          bookingRef: booking.bookingRef,
+        },
+        "One-way booking created",
+      );
       set.status = 201;
-      return { success: true, message: "Booking created successfully", data: booking };
+      return {
+        success: true,
+        message: "Booking created successfully",
+        data: booking,
+      };
     }
 
     // ── ROUND TRIP: create both legs in a single transaction ─────────────────
-    const outboundId  = generateBookingId();
-    const returnId    = generateBookingId();
+    const outboundId = generateBookingId();
+    const returnId = generateBookingId();
     const outboundRef = `BK${Date.now()}`;
-    const returnRef   = `BK${Date.now() + 1}-R`;
+    const returnRef = `BK${Date.now() + 1}-R`;
 
     const { outbound, returnBooking } = await db.transaction(async (tx) => {
       // Step 1: Outbound A → B — carries the full round trip fare
       const [ob] = await tx
         .insert(bookingsTable)
         .values({
-          id: outboundId, bookingRef: outboundRef,
-          userId: linkedUserId, bookedByUserId: user.id,
-          customerName, customerPhone, source,
-          serviceType, notes,
+          id: outboundId,
+          bookingRef: outboundRef,
+          userId: linkedUserId,
+          bookedByUserId: user.id,
+          customerName,
+          customerPhone,
+          source,
+          serviceType,
+          notes,
           status: initialStatus,
-          pickupId: pickup.id, dropId: drop.id,
-          journeyDate, journeyTime,
-          members, vehicleType, ac, totalFare,
-          tripType: "roundtrip", legType: "outbound",
+          pickupId: pickup.id,
+          dropId: drop.id,
+          journeyDate,
+          journeyTime,
+          members,
+          vehicleType,
+          ac,
+          totalFare,
+          tripType: "roundtrip",
+          legType: "outbound",
           qrExpiresAt,
         })
         .returning();
@@ -198,17 +269,26 @@ const createBooking = async ({
       const [ret] = await tx
         .insert(bookingsTable)
         .values({
-          id: returnId, bookingRef: returnRef,
-          userId: linkedUserId, bookedByUserId: user.id,
-          customerName, customerPhone, source,
-          serviceType, notes,
+          id: returnId,
+          bookingRef: returnRef,
+          userId: linkedUserId,
+          bookedByUserId: user.id,
+          customerName,
+          customerPhone,
+          source,
+          serviceType,
+          notes,
           status: initialStatus,
-          pickupId: drop.id,   // swapped
-          dropId: pickup.id,   // swapped
-          journeyDate: returnDate!, journeyTime: returnTime!,
-          members, vehicleType, ac,
-          totalFare: "0",      // payment tracked on outbound; balance collected by return driver via cash flow
-          tripType: "roundtrip", legType: "return",
+          pickupId: drop.id, // swapped
+          dropId: pickup.id, // swapped
+          journeyDate: returnDate!,
+          journeyTime: returnTime!,
+          members,
+          vehicleType,
+          ac,
+          totalFare: "0", // payment tracked on outbound; balance collected by return driver via cash flow
+          tripType: "roundtrip",
+          legType: "return",
           linkedBookingId: outboundId,
           qrExpiresAt: new Date(Date.now() + 1000 * 60 * 60 * 48),
         })
@@ -230,13 +310,22 @@ const createBooking = async ({
       await db.insert(paymentsTable).values({
         bookingId: outbound.id,
         rzpOrderId: `cash_admin_${nanoid(8)}`,
-        amount: totalFare, currency: "INR",
-        mode: "full", status: "cash_collected", paymentMethod: "cash",
+        amount: totalFare,
+        currency: "INR",
+        mode: "full",
+        status: "cash_collected",
+        paymentMethod: "cash",
       });
     }
 
     logger.info(
-      { requestId, module: "bookings", action: "create", outboundId: outbound.id, returnId: returnBooking.id },
+      {
+        requestId,
+        module: "bookings",
+        action: "create",
+        outboundId: outbound.id,
+        returnId: returnBooking.id,
+      },
       "Round trip bookings created",
     );
 
@@ -244,14 +333,26 @@ const createBooking = async ({
     return {
       success: true,
       message: "Round trip booking created successfully",
-      data: outbound,           // primary booking for payment flow
-      returnBooking,            // return leg details
+      data: outbound, // primary booking for payment flow
+      returnBooking, // return leg details
     };
-
   } catch (error: any) {
-    logger.error({ requestId, module: "bookings", action: "create", error: error.message, detail: error.detail, code: error.code }, "Booking creation failed");
+    logger.error(
+      {
+        requestId,
+        module: "bookings",
+        action: "create",
+        error: error.message,
+        detail: error.detail,
+        code: error.code,
+      },
+      "Booking creation failed",
+    );
     set.status = 400;
-    return { success: false, message: error.message || "Failed to create booking" };
+    return {
+      success: false,
+      message: error.message || "Failed to create booking",
+    };
   }
 };
 

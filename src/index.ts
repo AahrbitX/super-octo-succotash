@@ -8,7 +8,7 @@ import { openapi, fromTypes } from "@elysia/openapi";
 import { bookingsRouter } from "./routes/bookings/index";
 import { driverRouter } from "./routes/driver";
 import { placesRouter } from "./routes/places";
-import { reviewsRouter } from "./routes/review";
+import { reviewsRouter } from "./routes/reviews";
 import { usersRouter } from "./routes/users";
 import { driversRouter } from "./routes/drivers";
 import { dispatchersRouter } from "./routes/dispatchers";
@@ -42,8 +42,11 @@ const app = new Elysia()
   })
   .onAfterResponse(({ request, set, store }) => {
     const duration = Date.now() - ((store as any)._reqStart ?? Date.now());
-    const path     = new URL(request.url).pathname;
-    logger.info({ method: request.method, path, status: set.status, duration }, "request");
+    const path = new URL(request.url).pathname;
+    logger.info(
+      { method: request.method, path, status: set.status, duration },
+      "request",
+    );
   })
 
   // CORS middleware to allow requests from frontend

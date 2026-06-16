@@ -24,5 +24,5 @@ export const fleetRouter = new Elysia({ prefix: "/fleet" })
       .onBeforeHandle(requireAdmin)
       .post("/", fleetCreate, fleetCreateSchema)
       .patch("/:id", fleetUpdate, fleetUpdateSchema)
-      .delete("/:id", fleetDelete, fleetDeleteSchema)
+      .delete("/:id", fleetDelete, fleetDeleteSchema),
   );
