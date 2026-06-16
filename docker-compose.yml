@@ -1,3 +1,6 @@
+# Production compose — database is native PostgreSQL on the VPS (not Docker)
+# Local development: use docker-compose.local.yml instead
+
 services:
   cabs-api:
     image: abinjustinkumarave/mohancabs-api:latest

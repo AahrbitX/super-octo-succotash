@@ -17,13 +17,12 @@ if (!connectionString) {
   throw new Error("DATABASE_URL is not defined in your .env file");
 }
 
-// Disable prefetch as it can cause issues in certain environments/Docker
-// ssl: 'require' is needed for NeonDB
+// Disable prefetch as it is required for Drizzle with postgres.js
+// SSL is only needed for managed cloud databases (e.g. Neon) — set DATABASE_SSL=true in that env
 const client = postgres(connectionString, {
   prepare: false,
-  ssl: "require",
+  ssl: process.env.DATABASE_SSL === "true" ? "require" : false,
   max: 10,
-  connect_timeout: 30, // Neon free tier can take up to ~20s to wake from sleep
 });
 // Added this to set schema path to public
 await client`SET search_path TO public`;

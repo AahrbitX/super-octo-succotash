@@ -98,7 +98,7 @@ const FLEET_SEED = [
   },
 ];
 
-async function seed() {
+export async function seedFleet() {
   console.log("Seeding fleet_vehicles...");
   let inserted = 0;
   let skipped  = 0;
@@ -135,11 +135,13 @@ async function seed() {
     inserted++;
   }
 
-  console.log(`\nDone. ${inserted} inserted, ${skipped} skipped.`);
-  process.exit(0);
+  console.log(`Done. ${inserted} inserted, ${skipped} skipped.`);
 }
 
-seed().catch((err) => {
-  console.error("Seed failed:", err);
-  process.exit(1);
-});
+// Standalone entry point
+if (import.meta.main) {
+  seedFleet().then(() => process.exit(0)).catch((err) => {
+    console.error("Seed failed:", err);
+    process.exit(1);
+  });
+}

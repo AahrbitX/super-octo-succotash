@@ -52,7 +52,7 @@ export const driversList = async ({
     query.isAvailable === "false" ? eq(driversTable.isAvailable, false) :
     undefined;
 
-  const whereCondition = and(searchCondition, availabilityCondition);
+  const whereCondition = and(eq(driversTable.isDeleted, false), searchCondition, availabilityCondition);
 
   const [data, [totalQueryResult]] = await Promise.all([
     db

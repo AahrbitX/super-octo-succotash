@@ -13,7 +13,9 @@
     "db:reset": "bun run scripts/reset-data.ts",
     "seed:fleet": "bun run src/scripts/seed-fleet.ts",
     "seed:pricing": "bun run src/scripts/seed-pricing.ts",
-    "seed": "bun run src/scripts/seed-fleet.ts && bun run src/scripts/seed-pricing.ts"
+    "seed:admin": "bun run src/db/admin-seed.ts",
+    "seed": "bun run src/scripts/seed-fleet.ts && bun run src/scripts/seed-pricing.ts",
+    "db:setup": "bunx drizzle-kit push --force && bun run src/scripts/setup.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",

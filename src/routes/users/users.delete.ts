@@ -30,12 +30,12 @@ export const deleteUser = async ({
   }
 
   const [target] = await db
-    .select({ id: userTable.id, role: userTable.role })
+    .select({ id: userTable.id, role: userTable.role, isDeleted: userTable.isDeleted })
     .from(userTable)
     .where(eq(userTable.id, params.id))
     .limit(1);
 
-  if (!target) {
+  if (!target || target.isDeleted) {
     set.status = 404;
     return { success: false, message: "User not found" };
   }
@@ -45,11 +45,14 @@ export const deleteUser = async ({
     return { success: false, message: "Use the Drivers page to remove driver accounts" };
   }
 
-  await db.delete(userTable).where(eq(userTable.id, params.id));
+  await db
+    .update(userTable)
+    .set({ isDeleted: true, deletedAt: new Date(), updatedAt: new Date() } as any)
+    .where(eq(userTable.id, params.id));
 
   logger.info(
     { module: "users", action: "delete", targetId: params.id, adminId: user.id },
-    "User deleted by admin",
+    "User soft-deleted by admin",
   );
 
   return { success: true, message: "User deleted" };

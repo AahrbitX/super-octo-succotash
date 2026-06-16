@@ -32,7 +32,7 @@ export const usersList = async ({
       )
     : undefined;
 
-  const whereCondition = and(eq(usersTable.role, "user"), searchCondition);
+  const whereCondition = and(eq(usersTable.role, "user"), eq(usersTable.isDeleted, false), searchCondition);
 
   const [data, countResult] = await Promise.all([
     db

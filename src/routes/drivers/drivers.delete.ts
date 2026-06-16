@@ -25,19 +25,22 @@ export const deleteDriver = async ({
   }
 
   const [driver] = await db
-    .select({ id: driversTable.id, userId: driversTable.userId })
+    .select({ id: driversTable.id, userId: driversTable.userId, isDeleted: driversTable.isDeleted })
     .from(driversTable)
     .where(eq(driversTable.id, params.id))
     .limit(1);
 
-  if (!driver) {
+  if (!driver || driver.isDeleted) {
     set.status = 404;
     return { success: false, message: "Driver not found" };
   }
 
   await db.transaction(async (tx) => {
-    // Remove driver profile
-    await tx.delete(driversTable).where(eq(driversTable.id, params.id));
+    // Soft-delete driver profile
+    await tx
+      .update(driversTable)
+      .set({ isDeleted: true, deletedAt: new Date() })
+      .where(eq(driversTable.id, params.id));
     // Revert user role to "user"
     await tx
       .update(userTable)
@@ -45,7 +48,7 @@ export const deleteDriver = async ({
       .where(eq(userTable.id, driver.userId));
   });
 
-  logger.info({ module: "drivers", action: "delete", driverId: params.id, adminId: user.id }, "Driver deleted");
+  logger.info({ module: "drivers", action: "delete", driverId: params.id, adminId: user.id }, "Driver soft-deleted");
 
   return { success: true, message: "Driver removed successfully" };
 };

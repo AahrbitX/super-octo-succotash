@@ -6,6 +6,7 @@ import * as authSchema from "../db/auth-schema";
 import { betterAuth } from "better-auth";
 import { phoneNumber } from "better-auth/plugins";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { eq } from "drizzle-orm";
 
 import { sendLoginOtp } from "./whatsapp";
 
@@ -68,6 +69,22 @@ export const auth = betterAuth({
       },
     }),
   ],
+  databaseHooks: {
+    session: {
+      create: {
+        before: async (session) => {
+          const [u] = await db
+            .select({ banned: authSchema.user.banned })
+            .from(authSchema.user)
+            .where(eq(authSchema.user.id, session.userId))
+            .limit(1);
+          if (u?.banned) {
+            throw new Error("Your account has been suspended. Please contact support.");
+          }
+        },
+      },
+    },
+  },
   // For local dev, you can disable HTTPS requirement
   advanced: {
     cookiePrefix: "mohan-cabs",

@@ -55,7 +55,8 @@ export const searchDrivers = async ({
     filters.push(eq(driversTable.ac, query.ac === "true"));
   }
 
-  const whereClause = filters.length > 0 ? and(...filters) : undefined;
+  filters.push(eq(driversTable.isDeleted, false));
+  const whereClause = and(...filters);
 
   logger.info(
     {

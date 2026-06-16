@@ -21,6 +21,10 @@ export const usersRouter = new Elysia({ prefix: "/users" })
       set.status = 401;
       throw new Error("Unauthorized");
     }
+    if (session.user.banned) {
+      set.status = 403;
+      throw new Error("Account suspended");
+    }
     return { user: session.user };
   })
   // ── User-accessible routes (own profile only) ───────────────────────────────

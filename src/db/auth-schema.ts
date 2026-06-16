@@ -36,6 +36,8 @@ export const user = pgTable(
     marketingConsent: boolean("marketing_consent"),
     marketingConsentAt: timestamp("marketing_consent_at"),
     gender: text("gender"),
+    isDeleted: boolean("is_deleted").default(false).notNull(),
+    deletedAt: timestamp("deleted_at"),
   },
   (table) => [
     index("idx_user_name").on(table.name),
