@@ -36,6 +36,13 @@
       "when": 1779733467740,
       "tag": "0004_brown_captain_cross",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1781795761863,
+      "tag": "0005_graceful_jack_power",
+      "breakpoints": true
     }
   ]
 }

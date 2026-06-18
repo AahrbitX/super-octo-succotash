@@ -17,6 +17,14 @@ import {
   dispatcherAssignDriver,
   dispatcherAssignDriverSchema,
 } from "./dispatchers.assign-driver";
+import {
+  dispatcherChangeDriver,
+  dispatcherChangeDriverSchema,
+} from "./dispatchers.change-driver";
+import {
+  dispatcherResendLink,
+  dispatcherResendLinkSchema,
+} from "./dispatchers.resend-link";
 
 export const dispatchersRouter = new Elysia({ prefix: "/dispatchers" })
   .derive(async ({ request, set }) => {
@@ -49,4 +57,14 @@ export const dispatchersRouter = new Elysia({ prefix: "/dispatchers" })
     "/:bookingId/assign-driver",
     dispatcherAssignDriver,
     dispatcherAssignDriverSchema,
+  )
+  .patch(
+    "/:bookingId/change-driver",
+    dispatcherChangeDriver,
+    dispatcherChangeDriverSchema,
+  )
+  .post(
+    "/:bookingId/resend-link",
+    dispatcherResendLink,
+    dispatcherResendLinkSchema,
   );

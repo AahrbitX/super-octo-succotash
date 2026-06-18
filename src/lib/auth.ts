@@ -9,6 +9,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { eq } from "drizzle-orm";
 
 import { sendLoginOtp } from "./whatsapp";
+import { logger } from "./logging";
 
 /* 
 File: auth.ts
@@ -59,8 +60,18 @@ export const auth = betterAuth({
           return;
         }
 
-        // Dev mode: print OTP to console
-        console.log(`[DEV OTP] ${phoneNumber} → ${code}`);
+        // Dev mode: log OTP visibly
+        logger.info(
+          { module: "auth", action: "login_otp", phone: phoneNumber, otp: code },
+          [
+            ``,
+            `  ┌─ [DEV Login OTP] ${"─".repeat(42)}`,
+            `  │  Phone : ${phoneNumber}`,
+            `  │  OTP   : ${code}`,
+            `  └${"─".repeat(58)}`,
+            ``,
+          ].join("\n"),
+        );
       },
       signUpOnVerification: {
         getTempEmail: (phoneNumber) => `${phoneNumber}@mohan-cabs.com`,

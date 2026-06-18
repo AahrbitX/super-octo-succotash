@@ -19,6 +19,8 @@ import { fleetRouter } from "./routes/fleet";
 import { pricingRouter } from "./routes/pricing";
 import { vehiclesRouter } from "./routes/vehicles";
 import { distanceRouter } from "./routes/distance";
+import { publicReviewRouter } from "./routes/public-review";
+import { publicPayRouter } from "./routes/public-pay";
 
 const app = new Elysia()
 
@@ -84,7 +86,9 @@ const app = new Elysia()
       .use(fleetRouter)
       .use(pricingRouter)
       .use(vehiclesRouter)
-      .use(distanceRouter),
+      .use(distanceRouter)
+      .use(publicReviewRouter)
+      .use(publicPayRouter),
   )
 
   // Listen to 4000 port

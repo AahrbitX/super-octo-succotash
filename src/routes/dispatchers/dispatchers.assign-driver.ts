@@ -38,6 +38,9 @@ export const dispatcherAssignDriver = async ({
   user: any;
   set: any;
 }) => {
+  // Generate a 4-digit ride start OTP
+  const rideStartOtp = String(Math.floor(1000 + Math.random() * 9000));
+
   const result = await db.transaction(async (tx) => {
     const [driver] = await tx
       .select({ id: driversTable.id })
@@ -55,6 +58,7 @@ export const dispatcherAssignDriver = async ({
         driverId: body.driverId,
         status: "confirmed",
         confirmedAt: new Date(),
+        rideStartOtp,
         updatedAt: new Date(),
       })
       .where(
@@ -129,6 +133,8 @@ export const dispatcherAssignDriver = async ({
       logger.warn({ module: "whatsapp", action: "sendBookingAssigned", bookingId: params.bookingId, err }, "WhatsApp send failed")
     );
   }
+
+  // Ride-start OTP is stored in DB and shown to the customer in their upcoming ride card (in-app)
 
   set.status = 200;
 

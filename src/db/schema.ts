@@ -109,6 +109,8 @@ export const bookings = pgTable(
     legType: varchar("leg_type", { length: 10 }).notNull().default("single"), // 'single' | 'outbound' | 'return'
     linkedBookingId: text("linked_booking_id"), // ID of the other leg in a round trip
 
+    rideStartOtp: varchar("ride_start_otp", { length: 6 }),
+
     qrToken: uuid("qr_token")
       .notNull()
       .unique()

@@ -1,4 +1,4 @@
-import Elysia from "elysia";
+import Elysia, { t } from "elysia";
 import { rateLimit } from "elysia-rate-limit";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
@@ -113,10 +113,10 @@ export const driverRouter = new Elysia({ prefix: "/driver" })
     }
   })
 
-  /** PATCH /api/driver/:token/start — public, driver starts the ride */
-  .patch("/:token/start", async ({ params, set }) => {
+  /** PATCH /api/driver/:token/start — public, driver starts the ride (requires customer OTP) */
+  .patch("/:token/start", async ({ params, body, set }) => {
     const rows = await db
-      .select({ id: bookingsTable.id, status: bookingsTable.status, bookingRef: bookingsTable.bookingRef })
+      .select({ id: bookingsTable.id, status: bookingsTable.status, bookingRef: bookingsTable.bookingRef, rideStartOtp: bookingsTable.rideStartOtp })
       .from(bookingsTable)
       .where(eq(bookingsTable.qrToken, params.token))
       .limit(1);
@@ -137,9 +137,22 @@ export const driverRouter = new Elysia({ prefix: "/driver" })
       };
     }
 
+    // Validate OTP if one exists on the booking
+    const submittedOtp = (body as any)?.otp;
+    if (rows[0].rideStartOtp) {
+      if (!submittedOtp) {
+        set.status = 400;
+        return { success: false, message: "OTP is required to start the ride" };
+      }
+      if (String(submittedOtp).trim().toUpperCase() !== rows[0].rideStartOtp.toUpperCase()) {
+        set.status = 400;
+        return { success: false, message: "Invalid OTP. Please ask the customer for their ride OTP." };
+      }
+    }
+
     await db
       .update(bookingsTable)
-      .set({ status: "ongoing", rideStartedAt: new Date(), updatedAt: new Date() })
+      .set({ status: "ongoing", rideStartedAt: new Date(), rideStartOtp: null, updatedAt: new Date() })
       .where(eq(bookingsTable.id, rows[0].id));
 
     logger.info(
@@ -148,7 +161,7 @@ export const driverRouter = new Elysia({ prefix: "/driver" })
     );
 
     return { success: true, message: "Ride started" };
-  })
+  }, { body: t.Object({ otp: t.Optional(t.String()) }) })
 
   /** POST /api/driver/:token/verify-payment — driver enters customer's OTP to confirm cash */
   .post("/:token/verify-payment", ({ params, body, set }) =>

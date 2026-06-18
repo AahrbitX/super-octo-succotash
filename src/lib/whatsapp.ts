@@ -60,6 +60,28 @@ export interface LoginOtpPayload {
   code: string;
 }
 
+export interface RideStartOtpPayload {
+  phone: string;         // customer phone
+  customerName: string;
+  bookingRef: string;
+  otp: string;
+}
+
+export interface ReviewRequestPayload {
+  phone: string;         // customer phone
+  customerName: string;
+  bookingRef: string;
+  qrToken: string;       // booking qrToken — used to build the review URL
+}
+
+export interface PaymentLinkPayload {
+  phone: string;         // customer phone
+  customerName: string;
+  bookingRef: string;
+  amount: string;        // formatted amount e.g. "1500.00"
+  qrToken: string;       // booking qrToken — used to build the pay URL
+}
+
 
 // ─── Phone normalizer ─────────────────────────────────────────────────────────
 
@@ -76,11 +98,24 @@ async function sendTemplate(opts: SendTemplateOptions): Promise<void> {
 
   // Console fallback — when not explicitly enabled or credentials missing
   if (!TOKEN || !PHONE_ID || !ENABLED) {
-    const parts = [...opts.bodyParams];
-    if (opts.buttonParam) parts.push(`[URL] ${opts.buttonParam}`);
     logger.info(
-      { template: opts.templateName, to: opts.to, params: parts },
-      `[DEV WhatsApp] → ${opts.to} | ${opts.templateName} | params: ${parts.join(" | ")}`
+      {
+        whatsapp: true,
+        template: opts.templateName,
+        to: opts.to,
+        params: opts.bodyParams,
+        ...(opts.buttonParam ? { url: opts.buttonParam } : {}),
+      },
+      [
+        ``,
+        `  ┌─ [DEV WhatsApp] ${"─".repeat(44)}`,
+        `  │  Template : ${opts.templateName}`,
+        `  │  To       : +${opts.to}`,
+        ...opts.bodyParams.map((p, i) => `  │  Param ${i + 1}  : ${p}`),
+        ...(opts.buttonParam ? [`  │  URL      : ${opts.buttonParam}`] : []),
+        `  └${"─".repeat(58)}`,
+        ``,
+      ].join("\n")
     );
     return;
   }
@@ -283,6 +318,54 @@ export async function sendLoginOtp(payload: LoginOtpPayload): Promise<void> {
     bodyParams:   [payload.code],
     buttonParam:  payload.code,
     languageCode: "en",
+  });
+}
+
+/**
+ * Send a ride-start OTP to the customer after driver assignment.
+ * Template: ride_start_otp
+ * Body params: customerName, bookingRef, otp
+ * "Hi {{1}}, your ride start OTP for booking {{2}} is *{{3}}*. Share this with your driver when they arrive."
+ */
+export async function sendRideStartOtp(payload: RideStartOtpPayload): Promise<void> {
+  await sendTemplate({
+    to:           normalizePhone(payload.phone),
+    templateName: "ride_start_otp",
+    bodyParams:   [payload.customerName, payload.bookingRef, payload.otp],
+  });
+}
+
+/**
+ * Send a review request to the customer after ride completion.
+ * Template: review_request
+ * Body params: customerName, bookingRef
+ * Button URL: qrToken (appended to base review URL)
+ * "Hi {{1}}, how was your ride {{2}}? Please tap below to rate your experience."
+ */
+export async function sendReviewRequest(payload: ReviewRequestPayload): Promise<void> {
+  const FRONTEND_URL = process.env.FRONTEND_URL ?? "http://localhost:3000";
+  await sendTemplate({
+    to:           normalizePhone(payload.phone),
+    templateName: "review_request",
+    bodyParams:   [payload.customerName, payload.bookingRef],
+    buttonParam:  `${FRONTEND_URL}/review/${payload.qrToken}`,
+  });
+}
+
+/**
+ * Send a pending payment link to the customer.
+ * Template: payment_reminder
+ * Body params: customerName, amount, bookingRef
+ * Button URL: qrToken (appended to base pay URL)
+ * "Hi {{1}}, your payment of ₹{{2}} for booking {{3}} is pending. Tap below to pay now."
+ */
+export async function sendPaymentLink(payload: PaymentLinkPayload): Promise<void> {
+  const FRONTEND_URL = process.env.FRONTEND_URL ?? "http://localhost:3000";
+  await sendTemplate({
+    to:           normalizePhone(payload.phone),
+    templateName: "payment_reminder",
+    bodyParams:   [payload.customerName, payload.amount, payload.bookingRef],
+    buttonParam:  `${FRONTEND_URL}/pay/${payload.qrToken}`,
   });
 }
 

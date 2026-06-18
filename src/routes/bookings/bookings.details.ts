@@ -91,6 +91,7 @@ const bookingDetails = async ({
       riderJoinedAt: usersTable.createdAt,
 
       qrToken: bookingsTable.qrToken,
+      rideStartOtp: bookingsTable.rideStartOtp,
 
       tripType: bookingsTable.tripType,
       legType: bookingsTable.legType,
@@ -297,6 +298,8 @@ const bookingDetails = async ({
       bookingRef: booking.bookingRef,
       source: booking.source,
       qrToken: booking.qrToken,
+      // Ride-start OTP: only expose to the booking owner (customer) when status is confirmed
+      rideStartOtp: (isOwner && booking.status === "confirmed") ? (booking.rideStartOtp ?? null) : null,
       tripType: booking.tripType,
       legType: booking.legType,
       linkedBookingId: booking.linkedBookingId,

@@ -1,5 +1,5 @@
 import { t } from "elysia";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db } from "@/db";
 import { logger } from "@/lib/logging";
@@ -11,8 +11,8 @@ export const createBalancePaymentSchema = {
     tags: ["Payments"],
     operationId: "createBalancePayment",
     description:
-      "Create a cash payment record for the remaining balance on a partial booking. " +
-      "The source payment must be partial+paid. Returns the new payment ID.",
+      "Create a cash payment record for the remaining balance on a booking. " +
+      "Accepts either a payment ID or booking ID. Returns the new (or existing) balance payment ID.",
   },
 };
 
@@ -27,70 +27,97 @@ export const createBalancePayment = async ({
 }) => {
   const { id } = params;
 
-  logger.info(
-    { module: "payments", action: "create-balance", sourcePaymentId: id, userId: user.id },
-    "Creating balance payment for partial booking",
-  );
+  // ── Resolve booking ────────────────────────────────────────────────────────
+  // Accept either a payment ID or a booking ID so callers don't need to know which.
 
-  // Load the source (advance) payment
-  const [source] = await db
+  let bookingId: string | null = null;
+  let totalFare: number        = 0;
+  let bookingUserId: string    = "";
+
+  // Try as payment ID first
+  const [byPayment] = await db
     .select({
       bookingId: paymentsTable.bookingId,
-      status: paymentsTable.status,
-      mode: paymentsTable.mode,
-      amount: paymentsTable.amount,
-      userId: bookingsTable.userId,
       totalFare: bookingsTable.totalFare,
+      userId:    bookingsTable.userId,
     })
     .from(paymentsTable)
     .innerJoin(bookingsTable, eq(paymentsTable.bookingId, bookingsTable.id))
     .where(eq(paymentsTable.id, id))
     .limit(1);
 
-  if (!source) {
-    set.status = 404;
-    return { success: false, message: "Payment not found" };
+  if (byPayment) {
+    bookingId     = byPayment.bookingId;
+    totalFare     = parseFloat(byPayment.totalFare ?? "0");
+    bookingUserId = byPayment.userId ?? "";
+  } else {
+    // Try as booking ID directly
+    const [byBooking] = await db
+      .select({ id: bookingsTable.id, totalFare: bookingsTable.totalFare, userId: bookingsTable.userId })
+      .from(bookingsTable)
+      .where(eq(bookingsTable.id, id))
+      .limit(1);
+
+    if (!byBooking) {
+      set.status = 404;
+      return { success: false, message: "Payment or booking not found" };
+    }
+
+    bookingId     = byBooking.id;
+    totalFare     = parseFloat(byBooking.totalFare ?? "0");
+    bookingUserId = byBooking.userId ?? "";
   }
 
-  if (source.userId !== user.id && user.role !== "admin") {
+  if (bookingUserId !== user.id && user.role !== "admin") {
     set.status = 403;
     return { success: false, message: "Forbidden" };
   }
 
-  if (source.status !== "paid" || source.mode !== "partial") {
-    set.status = 400;
-    return { success: false, message: "Source payment must be a paid partial advance" };
-  }
+  // ── Calculate total already paid ──────────────────────────────────────────
+  const [sumRow] = await db
+    .select({ paid: sql<string>`COALESCE(SUM(${paymentsTable.amount}::numeric), 0)::text` })
+    .from(paymentsTable)
+    .where(
+      and(
+        eq(paymentsTable.bookingId, bookingId!),
+        inArray(paymentsTable.status, ["paid", "cash_collected"]),
+      ),
+    );
 
-  const remaining = parseFloat(source.totalFare) - parseFloat(source.amount);
+  const totalPaid  = parseFloat(sumRow?.paid ?? "0");
+  const remaining  = totalFare - totalPaid;
+
   if (remaining <= 0.01) {
     set.status = 400;
     return { success: false, message: "No balance remaining on this booking" };
   }
 
-  // Atomic upsert — the unique partial index on (bookingId WHERE mode='balance') means
-  // concurrent duplicate requests are silently ignored rather than creating two records.
+  logger.info(
+    { module: "payments", action: "create-balance", bookingId, totalFare, totalPaid, remaining, userId: user.id },
+    "Creating balance payment",
+  );
+
+  // ── Upsert balance payment ────────────────────────────────────────────────
   const [inserted] = await db
     .insert(paymentsTable)
     .values({
-      bookingId: source.bookingId,
-      rzpOrderId: `cash_balance_${nanoid(10)}`,
-      amount: String(remaining.toFixed(2)),
-      currency: "INR",
-      mode: "balance",
-      status: "cash_pending",
+      bookingId:     bookingId!,
+      rzpOrderId:    `cash_balance_${nanoid(10)}`,
+      amount:        String(remaining.toFixed(2)),
+      currency:      "INR",
+      mode:          "balance",
+      status:        "cash_pending",
       paymentMethod: "cash",
     })
     .onConflictDoNothing()
     .returning({ id: paymentsTable.id });
 
-  // If insert was a no-op (conflict with existing balance record), fetch that record
   const paymentId: string | undefined =
     inserted?.id ??
     (await db
       .select({ id: paymentsTable.id })
       .from(paymentsTable)
-      .where(and(eq(paymentsTable.bookingId, source.bookingId), eq(paymentsTable.mode, "balance")))
+      .where(and(eq(paymentsTable.bookingId, bookingId!), eq(paymentsTable.mode, "balance")))
       .limit(1)
       .then(([r]) => r?.id));
 
@@ -98,11 +125,6 @@ export const createBalancePayment = async ({
     set.status = 500;
     return { success: false, message: "Failed to resolve balance payment" };
   }
-
-  logger.info(
-    { module: "payments", action: "create-balance", paymentId, amount: remaining, wasNew: !!inserted },
-    inserted ? "Balance payment record created" : "Balance payment already exists — returning existing",
-  );
 
   set.status = inserted ? 201 : 200;
   return { success: true, data: { paymentId } };

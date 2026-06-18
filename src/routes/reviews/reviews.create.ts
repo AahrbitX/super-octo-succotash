@@ -25,7 +25,7 @@ export const createReviewSchema = {
   },
 };
 
-const createReview = async ({
+export const createReview = async ({
   user,
   body,
   set,

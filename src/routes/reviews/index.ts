@@ -5,7 +5,7 @@ import { flagReview, flagReviewSchema } from "./reviews.flag";
 import { readReview, readReviewSchema } from "./reviews.read";
 import { reviewStats, reviewStatsSchema } from "./reviews.stats";
 import { reviewDetails, reviewDetailsSchema } from "./reviews.details";
-import { createBooking, createBookingSchema } from "../bookings/booking.create";
+import { createReview, createReviewSchema } from "./reviews.create";
 
 export const reviewsRouter = new Elysia({ prefix: "/reviews" })
   .derive(async ({ request, set }) => {
@@ -17,7 +17,7 @@ export const reviewsRouter = new Elysia({ prefix: "/reviews" })
     return { user: session.user };
   })
   .get("/", reviewDetails, reviewDetailsSchema)
-  .post("/", createBooking, createBookingSchema)
+  .post("/", createReview, createReviewSchema)
   .get("/stats", reviewStats, reviewStatsSchema)
   .patch("/:id/flag", flagReview, flagReviewSchema)
   .patch("/:id/read", readReview, readReviewSchema);

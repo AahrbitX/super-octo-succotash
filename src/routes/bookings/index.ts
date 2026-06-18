@@ -8,6 +8,8 @@ import { searchBooking, searchBookingSchema } from "./booking.search";
 import { bookingDetails, bookingDetailsSchema } from "./bookings.details";
 import { cancelBooking, cancelBookingSchema } from "./booking.cancel";
 import { completeBooking, completeBookingSchema } from "./booking.complete";
+import { requestReview, requestReviewSchema } from "./booking.request-review";
+import { sendPaymentLinkHandler, sendPaymentLinkSchema } from "./booking.send-payment-link";
 
 export const bookingsRouter = new Elysia({ prefix: "/bookings" })
   .derive(async ({ request, set }) => {
@@ -37,4 +39,6 @@ export const bookingsRouter = new Elysia({ prefix: "/bookings" })
   .get("/:id", bookingDetails, bookingDetailsSchema)
   .post("/create", createBooking, createBookingSchema)
   .patch("/:id/cancel", cancelBooking, cancelBookingSchema)
-  .patch("/:id/complete", completeBooking, completeBookingSchema);
+  .patch("/:id/complete", completeBooking, completeBookingSchema)
+  .post("/:id/request-review", requestReview, requestReviewSchema)
+  .post("/:id/send-payment-link", sendPaymentLinkHandler, sendPaymentLinkSchema);

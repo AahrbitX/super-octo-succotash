@@ -3,15 +3,13 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { logger } from "@/lib/logging";
 import { bookings as bookingsTable, payments as paymentsTable } from "@/db/schema";
-import { sendCashCode } from "@/lib/whatsapp";
 
 export const notifyDriverSchema = {
   params: t.Object({ id: t.String() }),
   detail: {
     tags: ["Payments"],
     operationId: "notifyDriver",
-    description:
-      "Generate a fresh per-ride cash code, store it on the payment, and notify the driver (WhatsApp stub).",
+    description: "Generate a fresh cash OTP for the payment and return it to the customer in-app.",
   },
 };
 
@@ -27,17 +25,16 @@ export const notifyDriver = async ({
   const { id } = params;
 
   logger.info(
-    { module: "payments", action: "notify-driver", paymentId: id, userId: user.id },
-    "Notifying driver of cash payment",
+    { module: "payments", action: "generate-cash-code", paymentId: id, userId: user.id },
+    "Generating cash payment code",
   );
 
   const [row] = await db
     .select({
-      paymentUserId:  bookingsTable.userId,
-      bookingRef:     bookingsTable.bookingRef,
-      customerPhone:  bookingsTable.customerPhone,
-      amount:         paymentsTable.amount,
-      driverId:       bookingsTable.driverId,
+      paymentUserId: bookingsTable.userId,
+      bookingRef:    bookingsTable.bookingRef,
+      amount:        paymentsTable.amount,
+      driverId:      bookingsTable.driverId,
     })
     .from(paymentsTable)
     .innerJoin(bookingsTable, eq(paymentsTable.bookingId, bookingsTable.id))
@@ -59,21 +56,18 @@ export const notifyDriver = async ({
     return { success: true, driverAssigned: false };
   }
 
-  // Generate a fresh 6-digit numeric OTP (same format as login OTP)
+  // Generate a fresh 6-digit numeric OTP
   const otp = String(Math.floor(100000 + Math.random() * 900000));
   await db
     .update(paymentsTable)
     .set({ cashCode: otp })
     .where(eq(paymentsTable.id, id));
 
-  let otpSent = true;
-  try {
-    await sendCashCode({ to: row.customerPhone, code: otp });
-  } catch (err: unknown) {
-    otpSent = false;
-    logger.error({ module: "whatsapp", action: "sendPaymentOtp", paymentId: id, err }, "WhatsApp send failed");
-  }
+  logger.info(
+    { module: "payments", action: "generate-cash-code", paymentId: id, bookingRef: row.bookingRef },
+    "Cash code generated — shown to customer in-app",
+  );
 
   set.status = 200;
-  return { success: true, driverAssigned: true, otpSent };
+  return { success: true, driverAssigned: true, cashCode: otp };
 };
