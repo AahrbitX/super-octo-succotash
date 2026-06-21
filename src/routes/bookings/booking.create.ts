@@ -19,6 +19,9 @@ export const createBookingSchema = {
     customerPhone: t.String(),
     source: t.String(),
     serviceType: t.Optional(t.String()), // 'local' | 'outstation' | 'airport'
+    serviceSlug: t.Optional(t.String()), // e.g. 'airport', 'railway', 'city-taxi'
+    refNumber:   t.Optional(t.String()), // flight no. or train no.
+    duration:    t.Optional(t.String()), // hire duration e.g. '8 Hours', '5 Days'
     notes: t.Optional(t.String()),
     pickupName: t.String(),
     pickupZone: t.String(),
@@ -83,6 +86,9 @@ const createBooking = async ({
       customerPhone,
       source,
       serviceType = "local",
+      serviceSlug,
+      refNumber,
+      duration,
       notes,
       pickupName,
       pickupZone,
@@ -205,6 +211,13 @@ const createBooking = async ({
     const initialStatus = source === "admin" ? "confirmed" : "pending";
     const qrExpiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24);
 
+    // Build effective notes: merge user notes + flight/train number + hire duration
+    const noteParts: string[] = [];
+    if (notes?.trim()) noteParts.push(notes.trim());
+    if (refNumber?.trim()) noteParts.push(`Ref: ${refNumber.trim()}`);
+    if (duration?.trim()) noteParts.push(`Duration: ${duration.trim()}`);
+    const effectiveNotes = noteParts.length > 0 ? noteParts.join(" | ") : null;
+
     // ── ONE-WAY booking ───────────────────────────────────────────────────────
     if (!isRoundTrip) {
       const bookingId = generateBookingId();
@@ -221,7 +234,8 @@ const createBooking = async ({
           customerPhone,
           source,
           serviceType,
-          notes,
+          serviceSlug: serviceSlug ?? null,
+          notes: effectiveNotes,
           status: initialStatus,
           pickupId: pickup.id,
           dropId: drop.id,
@@ -288,7 +302,8 @@ const createBooking = async ({
           customerPhone,
           source,
           serviceType,
-          notes,
+          serviceSlug: serviceSlug ?? null,
+          notes: effectiveNotes,
           status: initialStatus,
           pickupId: pickup.id,
           dropId: drop.id,
@@ -318,7 +333,8 @@ const createBooking = async ({
           customerPhone,
           source,
           serviceType,
-          notes,
+          serviceSlug: serviceSlug ?? null,
+          notes: effectiveNotes,
           status: initialStatus,
           pickupId: drop.id, // swapped
           dropId: pickup.id, // swapped

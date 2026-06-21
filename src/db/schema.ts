@@ -78,6 +78,7 @@ export const bookings = pgTable(
     serviceType: varchar("service_type", { length: 20 })
       .notNull()
       .default("local"), // 'local' | 'outstation' | 'airport'
+    serviceSlug: varchar("service_slug", { length: 60 }), // e.g. 'airport', 'railway', 'city-taxi'
     notes: text("notes"),
     driverId: text("driver_id").references(() => drivers.id),
     pickupId: text("pickup_id")
@@ -368,7 +369,62 @@ export const vehiclePricing = pgTable("vehicle_pricing", {
     .defaultNow(),
 });
 
+// --- Table: services ---
+export const services = pgTable(
+  "services",
+  {
+    id:               text("id").primaryKey(),
+    slug:             varchar("slug", { length: 60 }).notNull().unique(),
+    name:             varchar("name", { length: 100 }).notNull(),
+    tagline:          varchar("tagline", { length: 200 }).notNull().default(""),
+    description:      text("description").notNull().default(""),
+    category:         varchar("category", { length: 20 }).notNull().default("ride"), // 'ride' | 'special'
+    formType:         varchar("form_type", { length: 20 }).notNull().default("standard"), // standard|outstation|airport|railway|hire|event|group|inquiry
+    serviceTab:       varchar("service_tab", { length: 20 }).notNull().default("local"), // 'local'|'outstation'|'airport'
+    vehicleCategories: jsonb("vehicle_categories")
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    iconName:   varchar("icon_name", { length: 60 }).notNull().default("IconCar"),
+    badge:      varchar("badge", { length: 60 }),
+    active:     boolean("active").notNull().default(true),
+    sortOrder:  smallint("sort_order").notNull().default(0),
+    createdAt:  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt:  timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_services_active").on(table.active, table.sortOrder),
+    index("idx_services_slug").on(table.slug),
+  ],
+);
+
+// --- Table: service_locations ---
+export const serviceLocations = pgTable(
+  "service_locations",
+  {
+    id:           text("id").primaryKey(),
+    serviceId:    text("service_id").notNull().references(() => services.id, { onDelete: "cascade" }),
+    locationType: varchar("location_type", { length: 10 }).notNull().default("both"), // 'pickup'|'drop'|'both'
+    name:         varchar("name", { length: 150 }).notNull(),
+    sublabel:     varchar("sublabel", { length: 100 }),
+    lat:          numeric("lat", { precision: 10, scale: 7 }),
+    lng:          numeric("lng", { precision: 10, scale: 7 }),
+    sortOrder:    smallint("sort_order").notNull().default(0),
+    createdAt:    timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_service_locations_service").on(table.serviceId, table.sortOrder),
+  ],
+);
+
 // --- DRIZZLE RELATIONS ---
+export const serviceRelations = relations(services, ({ many }) => ({
+  locations: many(serviceLocations),
+}));
+export const serviceLocationRelations = relations(serviceLocations, ({ one }) => ({
+  service: one(services, { fields: [serviceLocations.serviceId], references: [services.id] }),
+}));
+
 export const userRelations = relations(user, ({ many }) => ({
   bookings: many(bookings),
 }));

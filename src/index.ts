@@ -22,6 +22,7 @@ import { distanceRouter } from "./routes/distance";
 import { publicReviewRouter } from "./routes/public-review";
 import { publicPayRouter } from "./routes/public-pay";
 import { webhooksRouter } from "./routes/webhooks";
+import { servicesRouter } from "./routes/services";
 
 const app = new Elysia()
 
@@ -90,7 +91,8 @@ const app = new Elysia()
       .use(distanceRouter)
       .use(publicReviewRouter)
       .use(publicPayRouter)
-      .use(webhooksRouter),
+      .use(webhooksRouter)
+      .use(servicesRouter),
   )
 
   // Listen to 4000 port
