@@ -3,13 +3,14 @@ import { logger } from "@/lib/logging";
 import { sendBookingConfirmation } from "@/lib/whatsapp";
 
 import { t } from "elysia";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { generateBookingId, generatePlaceId } from "@/utils/id";
 import {
   bookings as bookingsTable,
   places as placesTable,
   payments as paymentsTable,
+  vehiclePricing,
 } from "@/db/schema";
 
 export const createBookingSchema = {
@@ -41,6 +42,7 @@ export const createBookingSchema = {
     ]),
     ac: t.Boolean(),
     totalFare: t.String(),
+    distanceKm: t.Optional(t.Number()), // used for server-side fare validation
   }),
   detail: {
     tags: ["Bookings"],
@@ -98,13 +100,51 @@ const createBooking = async ({
       vehicleType,
       ac,
       totalFare,
+      distanceKm,
     } = body;
 
+    // ── Server-side fare validation (when distanceKm is provided) ─────────────
+    const submittedFare = parseFloat(totalFare);
+    if (isNaN(submittedFare) || submittedFare < 0) {
+      set.status = 400;
+      return { success: false, message: "Invalid fare amount" };
+    }
+
+    if (distanceKm != null && distanceKm > 0) {
+      const [pricing] = await db
+        .select()
+        .from(vehiclePricing)
+        .where(eq(vehiclePricing.vehicleType, vehicleType))
+        .limit(1);
+
+      if (pricing) {
+        const serviceFares = pricing.serviceFares as Record<string, { amount: number; unit: string }> | null;
+        const svcFare = serviceFares?.[serviceType];
+        const ratePerKm = svcFare?.unit === "per km"
+          ? svcFare.amount
+          : parseFloat(String(pricing.defaultAmount));
+
+        if (ratePerKm > 0) {
+          const expectedFare = ratePerKm * distanceKm;
+          const tolerance = expectedFare * 0.20; // allow ±20% for surcharges/discounts
+          if (submittedFare < expectedFare - tolerance || submittedFare > expectedFare + tolerance) {
+            logger.warn(
+              { requestId, module: "bookings", action: "fare_validation", submittedFare, expectedFare, distanceKm, vehicleType, serviceType },
+              "Fare validation failed",
+            );
+            set.status = 400;
+            return { success: false, message: `Fare ₹${submittedFare} is outside the expected range for this trip` };
+          }
+        }
+      }
+    }
+
     // ── Resolve / create pickup place ─────────────────────────────────────────
+    const pickupNameNorm = pickupName.trim();
     let [pickup] = await db
       .select()
       .from(placesTable)
-      .where(eq(placesTable.name, pickupName))
+      .where(sql`LOWER(${placesTable.name}) = LOWER(${pickupNameNorm})`)
       .limit(1);
 
     if (!pickup) {
@@ -112,7 +152,7 @@ const createBooking = async ({
         .insert(placesTable)
         .values({
           id: generatePlaceId(),
-          name: pickupName,
+          name: pickupNameNorm,
           zone: pickupZone,
           lat: pickupLat != null ? String(pickupLat) : null,
           lng: pickupLng != null ? String(pickupLng) : null,
@@ -131,10 +171,11 @@ const createBooking = async ({
     }
 
     // ── Resolve / create drop place ───────────────────────────────────────────
+    const dropNameNorm = dropName.trim();
     let [drop] = await db
       .select()
       .from(placesTable)
-      .where(eq(placesTable.name, dropName))
+      .where(sql`LOWER(${placesTable.name}) = LOWER(${dropNameNorm})`)
       .limit(1);
 
     if (!drop) {
@@ -142,7 +183,7 @@ const createBooking = async ({
         .insert(placesTable)
         .values({
           id: generatePlaceId(),
-          name: dropName,
+          name: dropNameNorm,
           zone: dropZone,
           lat: dropLat != null ? String(dropLat) : null,
           lng: dropLng != null ? String(dropLng) : null,
@@ -167,7 +208,7 @@ const createBooking = async ({
     // ── ONE-WAY booking ───────────────────────────────────────────────────────
     if (!isRoundTrip) {
       const bookingId = generateBookingId();
-      const bookingRef = `BK${Date.now()}`;
+      const bookingRef = `BK${Date.now()}${nanoid(4).toUpperCase()}`;
 
       const [booking] = await db
         .insert(bookingsTable)
@@ -231,8 +272,8 @@ const createBooking = async ({
     // ── ROUND TRIP: create both legs in a single transaction ─────────────────
     const outboundId = generateBookingId();
     const returnId = generateBookingId();
-    const outboundRef = `BK${Date.now()}`;
-    const returnRef = `BK${Date.now() + 1}-R`;
+    const outboundRef = `BK${Date.now()}${nanoid(4).toUpperCase()}`;
+    const returnRef = `BK${Date.now()}${nanoid(4).toUpperCase()}-R`;
 
     const { outbound, returnBooking } = await db.transaction(async (tx) => {
       // Step 1: Outbound A → B — carries the full round trip fare

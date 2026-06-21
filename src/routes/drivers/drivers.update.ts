@@ -64,8 +64,6 @@ export const updateDriver = async ({
     "Driver update started",
   );
 
-  console.log(params, body);
-
   try {
     return await db.transaction(async (tx) => {
       const [existingDriver] = await tx

@@ -59,6 +59,7 @@ export const dispatcherAssignDriver = async ({
         status: "confirmed",
         confirmedAt: new Date(),
         rideStartOtp,
+        qrExpiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
         updatedAt: new Date(),
       })
       .where(

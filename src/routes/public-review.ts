@@ -25,6 +25,7 @@ export const publicReviewRouter = new Elysia({ prefix: "/review" })
     const [booking] = await db
       .select({
         id:           bookingsTable.id,
+        userId:       bookingsTable.userId,
         bookingRef:   bookingsTable.bookingRef,
         status:       bookingsTable.status,
         customerName: bookingsTable.customerName,
@@ -77,12 +78,13 @@ export const publicReviewRouter = new Elysia({ prefix: "/review" })
     return {
       success: true,
       data: {
-        bookingRef:   booking.bookingRef,
-        customerName: booking.customerName,
-        journeyDate:  booking.journeyDate,
-        journeyTime:  booking.journeyTime,
-        pickupName:   booking.pickupName ?? "—",
-        dropName:     booking.dropName   ?? "—",
+        bookingUserId: booking.userId,
+        bookingRef:    booking.bookingRef,
+        customerName:  booking.customerName,
+        journeyDate:   booking.journeyDate,
+        journeyTime:   booking.journeyTime,
+        pickupName:    booking.pickupName ?? "—",
+        dropName:      booking.dropName   ?? "—",
         driverName,
       },
     };

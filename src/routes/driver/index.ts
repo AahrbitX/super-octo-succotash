@@ -1,6 +1,6 @@
 import Elysia, { t } from "elysia";
 import { rateLimit } from "elysia-rate-limit";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { bookings as bookingsTable, payments as paymentsTable, places as placesTable } from "@/db/schema";
@@ -36,12 +36,12 @@ export const driverRouter = new Elysia({ prefix: "/driver" })
       .from(bookingsTable)
       .leftJoin(pickupPlace, eq(bookingsTable.pickupId, pickupPlace.id))
       .leftJoin(dropPlace, eq(bookingsTable.dropId, dropPlace.id))
-      .where(eq(bookingsTable.qrToken, params.token))
+      .where(and(eq(bookingsTable.qrToken, params.token), gt(bookingsTable.qrExpiresAt, new Date())))
       .limit(1);
 
     if (!rows[0]) {
       set.status = 404;
-      return { success: false, message: "Ride not found" };
+      return { success: false, message: "Ride not found or link has expired" };
     }
 
     const b = rows[0];
@@ -118,12 +118,12 @@ export const driverRouter = new Elysia({ prefix: "/driver" })
     const rows = await db
       .select({ id: bookingsTable.id, status: bookingsTable.status, bookingRef: bookingsTable.bookingRef, rideStartOtp: bookingsTable.rideStartOtp })
       .from(bookingsTable)
-      .where(eq(bookingsTable.qrToken, params.token))
+      .where(and(eq(bookingsTable.qrToken, params.token), gt(bookingsTable.qrExpiresAt, new Date())))
       .limit(1);
 
     if (!rows[0]) {
       set.status = 404;
-      return { success: false, message: "Ride not found" };
+      return { success: false, message: "Ride not found or link has expired" };
     }
 
     if (rows[0].status !== "confirmed") {

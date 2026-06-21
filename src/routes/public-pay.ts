@@ -30,6 +30,7 @@ export const publicPayRouter = new Elysia({ prefix: "/pay" })
     const [booking] = await db
       .select({
         id:           bookingsTable.id,
+        userId:       bookingsTable.userId,
         bookingRef:   bookingsTable.bookingRef,
         status:       bookingsTable.status,
         customerName: bookingsTable.customerName,
@@ -78,16 +79,17 @@ export const publicPayRouter = new Elysia({ prefix: "/pay" })
     return {
       success: true,
       data: {
-        bookingRef:   booking.bookingRef,
-        customerName: booking.customerName,
-        journeyDate:  booking.journeyDate,
-        journeyTime:  booking.journeyTime,
-        pickupName:   booking.pickupName ?? "—",
-        dropName:     booking.dropName   ?? "—",
-        totalFare:    totalFare.toFixed(2),
-        totalPaid:    totalPaid.toFixed(2),
-        amountDue:    amountDue.toFixed(2),
-        keyId:        process.env.RAZORPAY_KEY_ID,
+        bookingUserId: booking.userId,
+        bookingRef:    booking.bookingRef,
+        customerName:  booking.customerName,
+        journeyDate:   booking.journeyDate,
+        journeyTime:   booking.journeyTime,
+        pickupName:    booking.pickupName ?? "—",
+        dropName:      booking.dropName   ?? "—",
+        totalFare:     totalFare.toFixed(2),
+        totalPaid:     totalPaid.toFixed(2),
+        amountDue:     amountDue.toFixed(2),
+        keyId:         process.env.RAZORPAY_KEY_ID,
       },
     };
   })
@@ -139,13 +141,34 @@ export const publicPayRouter = new Elysia({ prefix: "/pay" })
         return { success: false, message: "No outstanding payment for this booking" };
       }
 
+      const mode = totalPaid > 0 ? "balance" : "full";
+
+      // Reuse an existing pending order if one exists (user clicked Pay, cancelled, clicked Pay again)
+      const [existingOrder] = await db
+        .select({ id: paymentsTable.id, rzpOrderId: paymentsTable.rzpOrderId, amount: paymentsTable.amount })
+        .from(paymentsTable)
+        .where(and(eq(paymentsTable.bookingId, booking.id), eq(paymentsTable.status, "created")))
+        .limit(1);
+
+      if (existingOrder) {
+        logger.info({ module: "public-pay", action: "reuse_order", bookingId: booking.id, orderId: existingOrder.rzpOrderId }, "Reusing existing payment order");
+        set.status = 200;
+        return {
+          success: true,
+          data: {
+            orderId:  existingOrder.rzpOrderId,
+            amount:   Math.round(parseFloat(existingOrder.amount) * 100),
+            currency: "INR",
+            keyId:    process.env.RAZORPAY_KEY_ID,
+          },
+        };
+      }
+
       const order = await rzp.orders.create({
         amount:   Math.round(amountDue * 100),
         currency: "INR",
         receipt:  booking.id,
       });
-
-      const mode = totalPaid > 0 ? "balance" : "full";
 
       await db.insert(paymentsTable).values({
         bookingId:  booking.id,

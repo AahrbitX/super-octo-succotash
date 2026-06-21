@@ -29,9 +29,10 @@ export const auth = betterAuth({
   trustedOrigins: ["http://localhost:3000", process.env.FRONTEND_URL || ""],
   user: {
     additionalFields: {
-      role:   { type: "string", defaultValue: "user" },
-      dob:    { type: "string", required: false },
-      gender: { type: "string", required: false },
+      role:              { type: "string",  defaultValue: "user" },
+      dob:               { type: "string",  required: false },
+      gender:            { type: "string",  required: false },
+      marketingConsent:  { type: "boolean", required: false },
     },
   },
   emailAndPassword: {
