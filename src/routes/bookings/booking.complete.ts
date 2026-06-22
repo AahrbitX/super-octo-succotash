@@ -9,7 +9,7 @@ import {
 import { user as usersTable } from "@/db/auth-schema";
 
 import { logger } from "@/lib/logging";
-import { sendAdminAlertToAll, getAdminPhones } from "@/lib/whatsapp";
+import { sendAdminAlertToAll, getAdminPhones, sendReviewRequest } from "@/lib/whatsapp";
 
 export const completeBookingSchema = {
   params: t.Object({
@@ -37,10 +37,12 @@ export const completeBooking = async ({
       status: bookingsTable.status,
       bookingRef: bookingsTable.bookingRef,
       customerName: bookingsTable.customerName,
+      customerPhone: bookingsTable.customerPhone,
       driverId: bookingsTable.driverId,
       journeyDate: bookingsTable.journeyDate,
       journeyTime: bookingsTable.journeyTime,
       totalFare: bookingsTable.totalFare,
+      qrToken: bookingsTable.qrToken,
     })
     .from(bookingsTable)
     .where(eq(bookingsTable.id, params.id))
@@ -106,13 +108,20 @@ export const completeBooking = async ({
     details: `${b.customerName} | Driver: ${driverRow?.name ?? "—"} | ₹${b.totalFare}`,
   }).catch((err) =>
     logger.warn(
-      {
-        module: "whatsapp",
-        action: "adminAlertComplete",
-        bookingId: params.id,
-        err,
-      },
+      { module: "whatsapp", action: "adminAlertComplete", bookingId: params.id, err },
       "WhatsApp send failed",
+    ),
+  );
+
+  sendReviewRequest({
+    phone:        b.customerPhone,
+    customerName: b.customerName,
+    bookingRef:   b.bookingRef,
+    qrToken:      b.qrToken,
+  }).catch((err) =>
+    logger.warn(
+      { module: "whatsapp", action: "reviewRequest", bookingId: params.id, err },
+      "WhatsApp review request failed",
     ),
   );
 

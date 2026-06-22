@@ -67,7 +67,9 @@ export const requestReview = async ({
     customerName: booking.customerName,
     bookingRef:   booking.bookingRef,
     qrToken:      booking.qrToken,
-  });
+  }).catch((err) =>
+    logger.warn({ module: "whatsapp", action: "requestReview", bookingId: params.id, err }, "WhatsApp send failed")
+  );
 
   logger.info(
     { module: "bookings", action: "request_review", bookingId: params.id, sentBy: user.id },

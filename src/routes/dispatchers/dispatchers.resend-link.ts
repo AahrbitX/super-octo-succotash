@@ -91,7 +91,9 @@ export const dispatcherResendLink = async ({
     dropName:        booking.dropName   ?? "",
     totalFare:       String(booking.totalFare),
     qrToken:         booking.qrToken,
-  });
+  }).catch((err) =>
+    logger.warn({ module: "whatsapp", action: "resendLink", bookingId: params.bookingId, err }, "WhatsApp send failed")
+  );
 
   logger.info(
     { module: "dispatchers", action: "resend_link", bookingId: params.bookingId, sentBy: user.id },

@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { logger } from "@/lib/logging";
-import { sendBookingConfirmation } from "@/lib/whatsapp";
+import { sendAdminAlertToAll, getAdminPhones } from "@/lib/whatsapp";
 
 import { t } from "elysia";
 import { eq, sql } from "drizzle-orm";
@@ -275,6 +275,15 @@ const createBooking = async ({
         },
         "One-way booking created",
       );
+
+      sendAdminAlertToAll(getAdminPhones(), {
+        eventType: "New Booking",
+        bookingRef: booking.bookingRef,
+        details: `${customerName} | ${journeyDate} ${journeyTime} | ${pickupName} → ${dropName} | ₹${totalFare}`,
+      }).catch((err) =>
+        logger.warn({ module: "whatsapp", action: "adminAlertCreate", bookingId: booking.id, err }, "WhatsApp send failed")
+      );
+
       set.status = 201;
       return {
         success: true,
@@ -384,6 +393,14 @@ const createBooking = async ({
         returnId: returnBooking.id,
       },
       "Round trip bookings created",
+    );
+
+    sendAdminAlertToAll(getAdminPhones(), {
+      eventType: "New Round Trip Booking",
+      bookingRef: outbound.bookingRef,
+      details: `${customerName} | ${journeyDate} ${journeyTime} | ${pickupName} → ${dropName} | ₹${totalFare}`,
+    }).catch((err) =>
+      logger.warn({ module: "whatsapp", action: "adminAlertCreate", outboundId: outbound.id, err }, "WhatsApp send failed")
     );
 
     set.status = 201;

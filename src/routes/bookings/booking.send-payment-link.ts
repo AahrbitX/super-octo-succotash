@@ -77,7 +77,9 @@ export const sendPaymentLinkHandler = async ({
     bookingRef:   booking.bookingRef,
     amount:       amountDue.toFixed(2),
     qrToken:      booking.qrToken,
-  });
+  }).catch((err) =>
+    logger.warn({ module: "whatsapp", action: "sendPaymentLink", bookingId: params.id, err }, "WhatsApp send failed")
+  );
 
   logger.info(
     { module: "bookings", action: "send_payment_link", bookingId: params.id, amountDue, sentBy: user.id },
