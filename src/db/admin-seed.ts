@@ -3,7 +3,7 @@ import { db } from "../db";
 import { auth } from "../lib/auth";
 import { user as userTable } from "./auth-schema";
 
-const ADMIN_PHONE = "8056054719";
+const ADMIN_PHONE = "7904377385";
 
 export async function seedAdmin() {
   console.log("Seeding admin user...");
@@ -22,8 +22,8 @@ export async function seedAdmin() {
   await auth.api.signUpEmail({
     body: {
       email:       `${ADMIN_PHONE}@mohan-cabs.com`,
-      password:    "adminpassword",
-      name:        "Karthikeyan",
+      password:    "m0h4n@c4B5",
+      name:        "Admin",
       role:        "admin",
       phoneNumber: ADMIN_PHONE,
       dob:         "10-12-2002",
@@ -31,7 +31,7 @@ export async function seedAdmin() {
   });
 
   console.log(`  added admin (${ADMIN_PHONE})`);
-  console.log(`  email: ${ADMIN_PHONE}@mohan-cabs.com`);
+  console.log(`  login: phone=${ADMIN_PHONE} / password=m0h4n@c4B5`);
 }
 
 // Standalone entry point
